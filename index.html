@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>ForensicStore Pro - Quản Lý Kho Hóa Chất & Văn Phòng Phẩm | Trung Tâm Pháp Y</title>
   
   <!-- Google Fonts: Inter & JetBrains Mono -->
@@ -20,8 +20,11 @@
 <body>
 
   <div class="app-container">
+    <!-- SIDEBAR BACKDROP (MOBILE) -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
     <!-- SIDEBAR NAVIGATION -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="app-sidebar">
       <div class="sidebar-header">
         <div class="sidebar-logo-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -36,6 +39,7 @@
           <h1>ForensicStore Pro</h1>
           <p>Trung Tâm Pháp Y TP</p>
         </div>
+        <button type="button" class="sidebar-close-btn" id="btn-close-sidebar" aria-label="Đóng menu">&times;</button>
       </div>
 
       <nav class="sidebar-nav">
@@ -118,6 +122,13 @@
       <!-- TOP HEADER BAR -->
       <header class="top-header">
         <div class="header-left">
+          <button type="button" class="mobile-menu-toggle" id="btn-toggle-sidebar" aria-label="Mở menu điều hướng">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
           <div class="page-title-group">
             <h2 id="current-page-title">Bảng Điều Khiển Tổng Quan</h2>
             <p id="current-page-desc">Hệ thống quản lý cơ sở dữ liệu kho vật tư hóa chất & văn phòng phẩm</p>
@@ -847,21 +858,23 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
               <button type="button" class="btn btn-outline btn-sm" id="btn-add-in-row">+ Thêm Dòng Mặt Hàng</button>
             </div>
 
-            <table class="tr-items-table">
-              <thead>
-                <tr>
-                  <th style="width: 34%;">Mặt Hàng <span class="required">*</span></th>
-                  <th style="width: 15%;">Số Lô (Lot)</th>
-                  <th style="width: 15%;">Hạn Dùng (HSD)</th>
-                  <th style="width: 12%;">Số Lượng <span class="required">*</span></th>
-                  <th style="width: 18%;">Đơn Giá (VNĐ)</th>
-                  <th style="width: 6%; text-align: center;">Xóa</th>
-                </tr>
-              </thead>
-              <tbody id="in-items-tbody">
-                <!-- Dynamic input rows -->
-              </tbody>
-            </table>
+            <div class="table-responsive">
+              <table class="tr-items-table" style="min-width: 650px;">
+                <thead>
+                  <tr>
+                    <th style="width: 34%;">Mặt Hàng <span class="required">*</span></th>
+                    <th style="width: 15%;">Số Lô (Lot)</th>
+                    <th style="width: 15%;">Hạn Dùng (HSD)</th>
+                    <th style="width: 12%;">Số Lượng <span class="required">*</span></th>
+                    <th style="width: 18%;">Đơn Giá (VNĐ)</th>
+                    <th style="width: 6%; text-align: center;">Xóa</th>
+                  </tr>
+                </thead>
+                <tbody id="in-items-tbody">
+                  <!-- Dynamic input rows -->
+                </tbody>
+              </table>
+            </div>
 
             <div style="margin-top: 12px; margin-bottom: 4px;">
               <button type="button" class="btn btn-outline" id="btn-add-in-row-bottom" style="width: 100%; padding: 11px 16px; border: 2px dashed #0d9488; color: #0f766e; background: #f0fdfa; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; cursor: pointer;">
@@ -932,19 +945,21 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
               <button type="button" class="btn btn-outline btn-sm" id="btn-add-out-row">+ Thêm Dòng Mặt Hàng</button>
             </div>
 
-            <table class="tr-items-table">
-              <thead>
-                <tr>
-                  <th style="width: 38%;">Mặt Hàng & Tồn Hiện Tại <span class="required">*</span></th>
-                  <th style="width: 34%;">Lô Xuất & HSD (FEFO Gợi Ý)</th>
-                  <th style="width: 20%;">Số Lượng Xuất <span class="required">*</span></th>
-                  <th style="width: 8%; text-align: center;">Xóa</th>
-                </tr>
-              </thead>
-              <tbody id="out-items-tbody">
-                <!-- Dynamic output rows -->
-              </tbody>
-            </table>
+            <div class="table-responsive">
+              <table class="tr-items-table" style="min-width: 650px;">
+                <thead>
+                  <tr>
+                    <th style="width: 38%;">Mặt Hàng & Tồn Hiện Tại <span class="required">*</span></th>
+                    <th style="width: 34%;">Lô Xuất & HSD (FEFO Gợi Ý)</th>
+                    <th style="width: 20%;">Số Lượng Xuất <span class="required">*</span></th>
+                    <th style="width: 8%; text-align: center;">Xóa</th>
+                  </tr>
+                </thead>
+                <tbody id="out-items-tbody">
+                  <!-- Dynamic output rows -->
+                </tbody>
+              </table>
+            </div>
 
             <div style="margin-top: 12px; margin-bottom: 4px;">
               <button type="button" class="btn btn-outline" id="btn-add-out-row-bottom" style="width: 100%; padding: 11px 16px; border: 2px dashed #2563eb; color: #1d4ed8; background: #eff6ff; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; cursor: pointer;">

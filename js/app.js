@@ -3053,12 +3053,35 @@
 
   // Setup Event Listeners
   function setupEventListeners() {
-    // Navigation
+    // Mobile Sidebar Drawer Controls
+    const sidebar = $('#app-sidebar');
+    const backdrop = $('#sidebar-backdrop');
+    const toggleBtn = $('#btn-toggle-sidebar');
+    const closeBtn = $('#btn-close-sidebar');
+
+    const openMobileSidebar = () => {
+      if (sidebar) sidebar.classList.add('mobile-active');
+      if (backdrop) backdrop.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    };
+
+    const closeMobileSidebar = () => {
+      if (sidebar) sidebar.classList.remove('mobile-active');
+      if (backdrop) backdrop.classList.remove('active');
+      document.body.style.overflow = '';
+    };
+
+    if (toggleBtn) toggleBtn.onclick = openMobileSidebar;
+    if (closeBtn) closeBtn.onclick = closeMobileSidebar;
+    if (backdrop) backdrop.onclick = closeMobileSidebar;
+
+    // Navigation (Auto closes mobile sidebar on selection)
     $$('.sidebar-nav .nav-item').forEach(item => {
       item.onclick = (e) => {
         e.preventDefault();
         const view = item.getAttribute('data-view');
         switchView(view);
+        closeMobileSidebar();
       };
     });
 
