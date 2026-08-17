@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ForensicStore Pro - Quản Lý Kho Hóa Chất & Văn Phòng Phẩm | Trung Tâm Pháp Y</title>
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Supabase Cloud SDK (Hỗ trợ đồng bộ đa thiết bị thời gian thực) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- CSS Stylesheet (Tự động nạp cả khi ở trong thư mục css/ hoặc để cùng cấp) -->
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 2v7.31"></path>
+            <path d="M14 9.3V1.99"></path>
+            <path d="M8.5 2h7"></path>
+            <path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path>
+            <path d="M5.52 16h12.96"></path>
+          </svg>
+        </div>
+        <div class="sidebar-brand">
+          <h1>ForensicStore Pro</h1>
+          <p>Trung Tâm Pháp Y TP</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">Tổng quan & Nghiệp vụ</div>
+        <a class="nav-item active" data-view="dashboard">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span>Bảng Điều Khiển</span>
+        </a>
+
+        <a class="nav-item" data-view="inventory">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
+            <path d="m3.3 7 8.7 5 8.7-5"></path>
+            <path d="M12 22V12"></path>
+          </svg>
+          <span>Danh Mục 2 Kho</span>
+        </a>
+
+        <a class="nav-item" data-view="transactions">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 3h5v5"></path>
+            <path d="M8 3H3v5"></path>
+            <path d="M12 22v-8.3"></path>
+            <path d="M12 8V2"></path>
+            <path d="m21 3-7.5 7.5"></path>
+            <path d="m3 3 7.5 7.5"></path>
+          </svg>
+          <span>Lịch Sử Nhập / Xuất</span>
+        </a>
+
+        <a class="nav-item" data-view="alerts">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span>Cảnh Báo HSD & Tồn</span>
+          <span class="badge badge-danger" id="nav-alert-count">0</span>
+        </a>
+
+        <div class="nav-section-title">Báo cáo & Dữ liệu</div>
+        <a class="nav-item" data-view="reports">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span>Báo Cáo & In Thẻ Kho</span>
+        </a>
+
+        <a class="nav-item" data-view="settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Cài Đặt & Sao Lưu DB</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar">TK</div>
+          <div class="user-info">
+            <div class="user-name" id="sidebar-user-name">Lê Văn Quý</div>
+            <div class="user-role">Thủ kho Giám định & VPP</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN WRAPPER -->
+    <main class="main-wrapper">
+      <!-- TOP HEADER BAR -->
+      <header class="top-header">
+        <div class="header-left">
+          <div class="page-title-group">
+            <h2 id="current-page-title">Bảng Điều Khiển Tổng Quan</h2>
+            <p id="current-page-desc">Hệ thống quản lý cơ sở dữ liệu kho vật tư hóa chất & văn phòng phẩm</p>
+          </div>
+        </div>
+
+        <div class="warehouse-selector-tabs">
+          <button class="wh-tab-btn active-all" id="wh-btn-all" data-wh="ALL">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+            Tất Cả 2 Kho
+          </button>
+          <button class="wh-tab-btn" id="wh-btn-chemical" data-wh="CHEMICAL">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2v7.31"></path><path d="M14 9.3V1.99"></path><path d="M8.5 2h7"></path><path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path></svg>
+            Kho Hóa Chất - Sinh Phẩm
+          </button>
+          <button class="wh-tab-btn" id="wh-btn-office" data-wh="OFFICE">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
+            Kho Văn Phòng Phẩm
+          </button>
+        </div>
+
+        <div class="header-actions">
+          <div class="cloud-status-badge status-offline" id="cloud-sync-status" title="Trạng thái kết nối đám mây (Click để đồng bộ ngay)">
+            <span class="status-dot"></span>
+            <span class="status-text" id="cloud-sync-text">Cục Bộ (Offline)</span>
+            <button type="button" class="btn-sync-icon" id="btn-sync-now" title="Đồng bộ đám mây ngay">🔄</button>
+          </div>
+          <button class="btn btn-primary" id="btn-quick-stock-in">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            + Nhập Kho
+          </button>
+          <button class="btn btn-secondary" id="btn-quick-stock-out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            - Xuất Kho
+          </button>
+        </div>
+      </header>
+
+      <!-- CONTENT BODY (SWITCHABLE VIEWS) -->
+      <div class="content-body">
+
+        <!-- 1. VIEW: DASHBOARD -->
+        <section id="view-dashboard" class="view-panel">
+          <!-- STATS GRID -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <span class="stat-card-title">Tổng Mặt Hàng</span>
+                <div class="stat-icon teal">🧪</div>
+              </div>
+              <div class="stat-value" id="stat-total-items">0</div>
+              <div class="stat-sub">Kho Hóa chất: <strong id="stat-sub-chem">0</strong> | VPP: <strong id="stat-sub-vpp">0</strong></div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <span class="stat-card-title">Giá Trị Tồn Ước Tính</span>
+                <div class="stat-icon blue">💰</div>
+              </div>
+              <div class="stat-value" id="stat-total-value">0 đ</div>
+              <div class="stat-sub">Tổng số lượng: <strong id="stat-total-qty">0</strong> đơn vị</div>
+            </div>
+
+            <div class="stat-card" style="border-left: 4px solid var(--danger);">
+              <div class="stat-card-header">
+                <span class="stat-card-title">Hóa Chất Đã Hết Hạn</span>
+                <div class="stat-icon red">⚠️</div>
+              </div>
+              <div class="stat-value" style="color: var(--danger);" id="stat-expired-count">0</div>
+              <div class="stat-sub">Cần lập biên bản tiêu hủy chất thải</div>
+            </div>
+
+            <div class="stat-card" style="border-left: 4px solid var(--warning);">
+              <div class="stat-card-header">
+                <span class="stat-card-title">Sắp Hết Hạn (&le; 60 ngày)</span>
+                <div class="stat-icon amber">⏳</div>
+              </div>
+              <div class="stat-value" style="color: var(--warning-dark);" id="stat-expiring-count">0</div>
+              <div class="stat-sub">Ưu tiên xuất trước theo FEFO</div>
+            </div>
+          </div>
+
+          <!-- URGENT ALERTS SECTION -->
+          <div class="card" id="dashboard-urgent-card">
+            <div class="card-header">
+              <h3 class="card-title">
+                <span style="color: var(--danger);">🚨</span> Cảnh Báo Khẩn Cấp Cần Xử Lý Ngay (HSD & Tồn Kho Dưới Định Mức)
+              </h3>
+              <button class="btn btn-outline btn-sm" id="btn-view-all-alerts">Xem Tất Cả Cảnh Báo &rarr;</button>
+            </div>
+            <div class="card-body" style="padding: 0;">
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Trạng Thái Cảnh Báo</th>
+                      <th>Mã & Tên Hóa Chất / Vật Tư</th>
+                      <th>Kho</th>
+                      <th>Số Lô (Lot)</th>
+                      <th>Hạn Dùng / Tồn Kho</th>
+                      <th>Vị Trí Lưu Kho</th>
+                      <th>Hành Động Khuyến Nghị</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboard-urgent-tbody">
+                    <!-- Dynamic Urgent Items -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- RECENT TRANSACTIONS & QUICK SHORTCUTS -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">
+                <span>📋</span> Giao Dịch Nhập / Xuất Gần Đây
+              </h3>
+              <button class="btn btn-outline btn-sm" id="btn-view-all-transactions">Xem Toàn Bộ Sổ Giao Dịch &rarr;</button>
+            </div>
+            <div class="card-body" style="padding: 0;">
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Số Phiếu</th>
+                      <th>Loại</th>
+                      <th>Ngày Thực Hiện</th>
+                      <th>Kho</th>
+                      <th>Đơn Vị Nhận / NCC</th>
+                      <th>Mục Đích / Số Vụ Án</th>
+                      <th class="text-right">Tổng Tiền</th>
+                      <th class="text-center">Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboard-recent-tbody">
+                    <!-- Dynamic Recent Transactions -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. VIEW: INVENTORY MASTER CATALOG -->
+        <section id="view-inventory" class="view-panel" style="display: none;">
+          <div class="card">
+            <div class="card-header">
+              <div class="toolbar-left">
+                <div class="search-box">
+                  <span class="search-icon">🔍</span>
+                  <input type="text" id="inventory-search" placeholder="Tìm theo tên hóa chất, mã, số Lô, CAS...">
+                </div>
+                <select class="form-control" id="inventory-cat-filter">
+                  <option value="ALL">-- Tất cả Phân loại --</option>
+                </select>
+                <select class="form-control" id="inventory-status-filter">
+                  <option value="ALL">-- Tất cả Trạng thái --</option>
+                  <option value="NORMAL">Bình thường</option>
+                  <option value="EXPIRING">Sắp hết hạn (&le; 60 ngày)</option>
+                  <option value="EXPIRED">Đã hết hạn</option>
+                  <option value="LOW_STOCK">Dưới định mức tồn</option>
+                </select>
+              </div>
+              <div class="toolbar-right">
+                <button class="btn btn-primary" id="btn-add-item">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  + Thêm Mặt Hàng Mới
+                </button>
+              </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+              <div class="table-responsive">
+                <table class="data-table" id="inventory-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 4%;">STT</th>
+                      <th style="width: 10%;">Mã VT/HC</th>
+                      <th style="width: 25%;">Tên Vật Tư / Hóa Chất / Quy Cách</th>
+                      <th style="width: 12%;">Phân Loại & Độc Hại</th>
+                      <th style="width: 14%;">Điều Kiện Bảo Quản & Vị Trí</th>
+                      <th style="width: 18%;">Chi Tiết Lô & Hạn Dùng</th>
+                      <th style="width: 9%;" class="text-right">Tổng Tồn</th>
+                      <th style="width: 8%;" class="text-center">Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody id="inventory-tbody">
+                    <!-- Dynamic Inventory rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. VIEW: TRANSACTIONS (NHẬP / XUẤT) -->
+        <section id="view-transactions" class="view-panel" style="display: none;">
+          <div class="card">
+            <div class="card-header">
+              <div class="toolbar-left">
+                <div class="search-box">
+                  <span class="search-icon">🔍</span>
+                  <input type="text" id="transactions-search" placeholder="Tìm theo số phiếu, tên khoa phòng, vụ án, người nhận...">
+                </div>
+                <select class="form-control" id="transactions-type-filter">
+                  <option value="ALL">-- Tất cả Loại Phiếu --</option>
+                  <option value="IN">Phiếu Nhập Kho (+)</option>
+                  <option value="OUT">Phiếu Xuất Kho (-)</option>
+                </select>
+              </div>
+              <div class="toolbar-right">
+                <button class="btn btn-primary" id="btn-create-stock-in">+ Lập Phiếu Nhập Kho</button>
+                <button class="btn btn-secondary" id="btn-create-stock-out">- Lập Phiếu Xuất Kho</button>
+              </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Số Chứng Từ</th>
+                      <th>Loại Phiếu</th>
+                      <th>Ngày Tháng</th>
+                      <th>Kho</th>
+                      <th>Đối Tác / Khoa Phòng Nhận</th>
+                      <th>Diễn Giải / Vụ Án Giám Định</th>
+                      <th>Người Giao / Nhận</th>
+                      <th class="text-right">Tổng Tiền</th>
+                      <th class="text-center">In / Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody id="transactions-tbody">
+                    <!-- Dynamic Transactions rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. VIEW: ALERTS CENTER (CẢNH BÁO HSD & TỒN KHO) -->
+        <section id="view-alerts" class="view-panel" style="display: none;">
+          <div class="tab-nav">
+            <button class="tab-btn active" data-alert-tab="expired">
+              🔴 Hóa Chất Đã Hết Hạn (<span id="alert-tab-count-expired">0</span>)
+            </button>
+            <button class="tab-btn" data-alert-tab="expiring">
+              🟡 Sắp Hết Hạn Trong 60 Ngày (<span id="alert-tab-count-expiring">0</span>)
+            </button>
+            <button class="tab-btn" data-alert-tab="lowstock">
+              ⚠️ Tồn Kho Dưới Định Mức (<span id="alert-tab-count-lowstock">0</span>)
+            </button>
+          </div>
+
+          <div id="alert-tab-content-expired" class="alert-subpanel">
+            <div class="card" style="border-top: 4px solid var(--danger);">
+              <div class="card-header">
+                <h3 class="card-title" style="color: var(--danger-dark);">
+                  Danh Sách Hóa Chất & Sinh Phẩm ĐÃ QUÁ HẠN SỬ DỤNG
+                </h3>
+                <p style="font-size: 12.5px; color: var(--text-muted);">Tuyệt đối không dùng cho công tác giám định pháp y để tránh sai lệch kết quả. Cần cách ly và làm thủ tục tiêu hủy.</p>
+              </div>
+              <div class="card-body" style="padding: 0;">
+                <div class="table-responsive">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Mã & Tên Hóa Chất</th>
+                        <th>Số Lô (Lot)</th>
+                        <th>Hạn Sử Dụng</th>
+                        <th>Quá Hạn</th>
+                        <th class="text-right">Số Lượng</th>
+                        <th>Vị Trí Bảo Quản</th>
+                        <th>Biện Pháp Xử Lý</th>
+                      </tr>
+                    </thead>
+                    <tbody id="alerts-expired-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="alert-tab-content-expiring" class="alert-subpanel" style="display: none;">
+            <div class="card" style="border-top: 4px solid var(--warning);">
+              <div class="card-header">
+                <h3 class="card-title" style="color: var(--warning-dark);">
+                  Hóa Chất & Sinh Phẩm GẦN HẾT HẠN (Còn dưới 60 ngày)
+                </h3>
+                <p style="font-size: 12.5px; color: var(--text-muted);">Hệ thống khuyến nghị áp dụng phương pháp FEFO (First Expired, First Out) ưu tiên xuất cho các vụ án cần thực hiện ngay.</p>
+              </div>
+              <div class="card-body" style="padding: 0;">
+                <div class="table-responsive">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Mã & Tên Hóa Chất</th>
+                        <th>Số Lô (Lot)</th>
+                        <th>Hạn Sử Dụng</th>
+                        <th>Thời Gian Còn Lại</th>
+                        <th class="text-right">Số Lượng Còn</th>
+                        <th>Đề Xuất FEFO</th>
+                      </tr>
+                    </thead>
+                    <tbody id="alerts-expiring-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="alert-tab-content-lowstock" class="alert-subpanel" style="display: none;">
+            <div class="card" style="border-top: 4px solid var(--secondary);">
+              <div class="card-header">
+                <h3 class="card-title">
+                  Vật Tư & Hóa Chất DƯỚI ĐỊNH MỨC TỒN AN TOÀN (Cần Mua Sắm Bổ Sung)
+                </h3>
+                <p style="font-size: 12.5px; color: var(--text-muted);">Danh sách mặt hàng cần đưa vào danh mục dự trù mua sắm định kỳ gửi Phòng Kế hoạch - Tài chính.</p>
+              </div>
+              <div class="card-body" style="padding: 0;">
+                <div class="table-responsive">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Mã & Tên Vật Tư / Hóa Chất</th>
+                        <th>Kho</th>
+                        <th class="text-right">Tồn Thực Tế</th>
+                        <th class="text-right">Định Mức Tối Thiểu</th>
+                        <th class="text-right">Số Lượng Thiếu Hụt</th>
+                        <th>Đơn Vị Tính</th>
+                        <th>Trạng Thái</th>
+                      </tr>
+                    </thead>
+                    <tbody id="alerts-lowstock-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. VIEW: REPORTS & STOCK CARD -->
+        <section id="view-reports" class="view-panel" style="display: none;">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">📊 Báo Cáo Tổng Hợp Xuất - Nhập - Tồn Kho</h3>
+              <div class="toolbar-right">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <label style="font-size: 12.5px; font-weight: 600;">Từ ngày:</label>
+                  <input type="date" class="form-control" id="report-from-date">
+                  <label style="font-size: 12.5px; font-weight: 600;">Đến ngày:</label>
+                  <input type="date" class="form-control" id="report-to-date">
+                  <button class="btn btn-outline btn-sm" id="btn-filter-report">Lọc Báo Cáo</button>
+                </div>
+                <button class="btn btn-primary btn-sm" id="btn-print-inventory-report">
+                  🖨️ In Báo Cáo A4
+                </button>
+                <button class="btn btn-outline btn-sm" id="btn-export-inventory-excel">
+                  📥 Xuất Excel
+                </button>
+              </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+              <div class="table-responsive">
+                <table class="data-table" id="report-xnt-table">
+                  <thead>
+                    <tr>
+                      <th>STT</th>
+                      <th>Mã VT/HC</th>
+                      <th>Tên Vật Tư / Hóa Chất</th>
+                      <th class="text-center">ĐVT</th>
+                      <th class="text-right">Tồn Đầu Kỳ</th>
+                      <th class="text-right">Nhập Trong Kỳ</th>
+                      <th class="text-right">Xuất Trong Kỳ</th>
+                      <th class="text-right font-bold">Tồn Cuối Kỳ</th>
+                      <th class="text-right">Đơn Giá TB</th>
+                      <th class="text-right font-bold">Thành Tiền Cuối</th>
+                    </tr>
+                  </thead>
+                  <tbody id="report-xnt-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- DEPARTMENT USAGE BREAKDOWN -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">🏢 Thống Kê Cấp Phát Vật Tư Theo Khoa / Phòng Giám Định</h3>
+              <button class="btn btn-outline btn-sm" id="btn-export-dept-excel">📥 Xuất Excel</button>
+            </div>
+            <div class="card-body" style="padding: 0;">
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>STT</th>
+                      <th>Tên Khoa / Phòng Ban Thụ Hưởng</th>
+                      <th>Mã Khoa</th>
+                      <th>Số Lượt Xuất</th>
+                      <th>Các Hạng Mục Chủ Yếu</th>
+                      <th class="text-right font-bold">Tổng Giá Trị Đã Cấp Phát</th>
+                    </tr>
+                  </thead>
+                  <tbody id="report-dept-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. VIEW: SETTINGS & DATABASE BACKUP -->
+        <section id="view-settings" class="view-panel" style="display: none;">
+          <div class="form-grid">
+            <!-- AGENCY SETTINGS -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">🏛️ Thông Tin Cơ Quan & Cán Bộ Phụ Trách</h3>
+              </div>
+              <div class="card-body">
+                <form id="form-settings" class="form-grid" style="grid-template-columns: 1fr; gap: 14px;">
+                  <div class="form-group">
+                    <label class="form-label">Cơ quan chủ quản cấp trên:</label>
+                    <input type="text" class="form-control" id="set-parent-org" value="SỞ Y TẾ THÀNH PHỐ HỒ CHÍ MINH">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Tên Cơ quan / Đơn vị:</label>
+                    <input type="text" class="form-control" id="set-org-name">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Địa chỉ trụ sở:</label>
+                    <input type="text" class="form-control" id="set-org-address">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Số điện thoại liên hệ:</label>
+                    <input type="text" class="form-control" id="set-org-phone">
+                  </div>
+                  <div class="form-grid" style="gap: 12px;">
+                    <div class="form-group">
+                      <label class="form-label">Họ tên Thủ kho:</label>
+                      <input type="text" class="form-control" id="set-storekeeper" value="Cử nhân Lê Văn Quý">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Trưởng phòng Tổ chức - Hành chính - Quản trị:</label>
+                      <input type="text" class="form-control" id="set-head-admin" placeholder="Để trống để ký và ghi tay">
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Giám đốc Trung tâm Pháp y:</label>
+                    <input type="text" class="form-control" id="set-manager-name" placeholder="Để trống để ký và ghi tay">
+                  </div>
+                  <button type="submit" class="btn btn-primary" style="margin-top: 8px;">💾 Lưu Thông Tin Cơ Quan</button>
+                </form>
+              </div>
+            </div>
+
+            <!-- BACKUP & RESTORE DATABASE -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">🛡️ Sao Lưu & An Toàn Cơ Sở Dữ Liệu</h3>
+              </div>
+              <div class="card-body" style="display: flex; flex-direction: column; gap: 20px;">
+                <div style="background: var(--bg-alt); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                  <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 6px;">📥 Sao Lưu Dữ Liệu Ra File (Backup JSON)</h4>
+                  <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px;">
+                    Tải về toàn bộ cơ sở dữ liệu kho, danh mục, số lô, lịch sử nhập xuất để lưu trữ định kỳ hoặc chuyển sang máy tính khác.
+                  </p>
+                  <button class="btn btn-primary" id="btn-export-backup-json">
+                    💾 Tải File Sao Lưu (.json)
+                  </button>
+                </div>
+
+                <div style="background: var(--bg-alt); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                  <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 6px;">📤 Khôi Phục Dữ Liệu Từ File (Restore JSON)</h4>
+                  <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px;">
+                    Chọn file sao lưu `.json` đã lưu trước đó để phục hồi lại toàn bộ cơ sở dữ liệu.
+                  </p>
+                  <input type="file" id="file-restore-db" accept=".json" style="display: none;">
+                  <button class="btn btn-outline" id="btn-trigger-restore">
+                    📂 Chọn File Khôi Phục
+                  </button>
+                </div>
+
+                <div style="border-top: 1px dashed var(--border); padding-top: 16px;">
+                  <h4 style="font-size: 14px; font-weight: 700; color: var(--danger); margin-bottom: 6px;">⚠️ Khôi Phục Dữ Liệu Mẫu Pháp Y Gốc</h4>
+                  <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+                    Nạp lại bộ dữ liệu mẫu chuẩn ngành Pháp y (Kit ADN, que test ma túy, Formalin, VPP...).
+                  </p>
+                  <button class="btn btn-danger btn-sm" id="btn-reset-sample-data">
+                    🔄 Nạp Lại Dữ Liệu Mẫu
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- CLOUD DATABASE (SUPABASE) CONFIG -->
+            <div class="card col-span-2">
+              <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 class="card-title">☁️ Kết Nối Cơ Sở Dữ Liệu Đám Mây (Supabase Cloud Sync)</h3>
+                <span class="cloud-status-badge status-offline" id="settings-cloud-badge">
+                  <span class="status-dot"></span>
+                  <span class="status-text">Chế độ Cục bộ (Offline)</span>
+                </span>
+              </div>
+              <div class="card-body" style="display: flex; flex-direction: column; gap: 16px;">
+                <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin: 0;">
+                  Khi kết nối Đám mây Supabase (miễn phí), mọi thao tác lập phiếu, nhập/xuất kho từ máy tính cơ quan, máy ở nhà hoặc điện thoại sẽ được tự động đồng bộ tức thì theo thời gian thực mà không cần copy file thủ công.
+                </p>
+
+                <div class="cloud-config-box">
+                  <div class="form-grid" style="gap: 14px;">
+                    <div class="form-group">
+                      <label class="form-label"><strong>1. Supabase Project URL:</strong></label>
+                      <input type="url" class="form-control font-mono" id="set-supabase-url" placeholder="VD: https://xyzcompany.supabase.co">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label"><strong>2. Supabase Anon / Public API Key:</strong></label>
+                      <input type="password" class="form-control font-mono" id="set-supabase-key" placeholder="VD: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+                    </div>
+                  </div>
+
+                  <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 4px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                      <input type="checkbox" id="set-supabase-autosync" checked style="width: 17px; height: 17px; accent-color: var(--primary);">
+                      Tự động đồng bộ thời gian thực mỗi khi có thay đổi
+                    </label>
+
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                      <button type="button" class="btn btn-outline btn-sm" id="btn-test-supabase">
+                        🔌 Kiểm Tra Kết Nối
+                      </button>
+                      <button type="button" class="btn btn-primary btn-sm" id="btn-save-supabase">
+                        💾 Lưu & Bật Đám Mây
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-sm" id="btn-push-supabase" title="Đẩy toàn bộ dữ liệu máy này lên đám mây">
+                        📤 Đẩy Lên Đám Mây (Upload)
+                      </button>
+                      <button type="button" class="btn btn-outline btn-sm" id="btn-pull-supabase" title="Kéo dữ liệu mới nhất từ đám mây về máy này">
+                        📥 Kéo Về Máy (Download)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- SUPABASE QUICK SETUP INSTRUCTIONS -->
+                <details class="cloud-guide-details">
+                  <summary style="font-weight: 700; color: var(--primary-dark); cursor: pointer; user-select: none;">
+                    📖 Hướng dẫn 3 bước tạo Database Supabase miễn phí (chỉ mất 2 phút)
+                  </summary>
+                  <div style="margin-top: 12px; font-size: 12.5px; line-height: 1.6; color: var(--text-main);">
+                    <p><strong>Bước 1:</strong> Truy cập <strong><a href="https://supabase.com" target="_blank" style="color: var(--primary); text-decoration: underline;">supabase.com</a></strong> ➡️ Đăng nhập bằng Google hoặc GitHub ➡️ Bấm <strong>"New project"</strong> (Đặt tên ví dụ: <code>kho-phap-y</code>).</p>
+                    <p><strong>Bước 2:</strong> Vào mục <strong>SQL Editor</strong> ở menu bên trái của Supabase, dán đoạn mã sau vào rồi nhấn nút <strong>Run</strong>:</p>
+                    <pre class="cloud-sql-code">-- Tạo bảng lưu trữ cơ sở dữ liệu kho Pháp Y
+CREATE TABLE IF NOT EXISTS public.forensic_inventory (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Cho phép ứng dụng đọc/ghi dữ liệu
+ALTER TABLE public.forensic_inventory ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read/write" ON public.forensic_inventory
+  FOR ALL USING (true) WITH CHECK (true);</pre>
+                    <p><strong>Bước 3:</strong> Vào mục <strong>Project Settings</strong> ➡️ <strong>API</strong> ➡️ Sao chép <strong>Project URL</strong> và <strong>anon / public key</strong> dán vào 2 ô ở trên, bấm <strong>"Lưu & Bật Đám Mây"</strong> là xong!</p>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. MODAL: THÊM / SỬA MẶT HÀNG -->
+  <div class="modal-overlay" id="modal-item">
+    <div class="modal-container modal-lg">
+      <div class="modal-header">
+        <h3 id="modal-item-title">Thêm Mặt Hàng / Hóa Chất Mới</h3>
+        <button class="btn btn-outline btn-icon" id="btn-close-item-modal">&times;</button>
+      </div>
+      <form id="form-item">
+        <div class="modal-body">
+          <input type="hidden" id="item-id">
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label class="form-label">Thuộc Kho <span class="required">*</span></label>
+              <select class="form-control" id="item-warehouse" required>
+                <option value="CHEMICAL">Kho Hóa chất & Sinh phẩm</option>
+                <option value="OFFICE">Kho Văn phòng phẩm</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mã Mặt Hàng / Mã VT <span class="required">*</span></label>
+              <input type="text" class="form-control font-mono" id="item-code" placeholder="VD: HC-ADN-03 hoặc VPP-06" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phân Loại Nhóm <span class="required">*</span></label>
+              <select class="form-control" id="item-category" required></select>
+            </div>
+
+            <div class="form-group col-span-3">
+              <label class="form-label">Tên Vật Tư / Hóa Chất / Sinh Phẩm <span class="required">*</span></label>
+              <input type="text" class="form-control" id="item-name" placeholder="VD: Bộ kit tách chiết ADN hoặc Giấy A4 Double A" required>
+            </div>
+
+            <!-- Specific Chemical Fields -->
+            <div class="form-group field-chem">
+              <label class="form-label">Công Thức Hóa Học</label>
+              <input type="text" class="form-control font-mono" id="item-formula" placeholder="VD: CH3OH, H2SO4, N/A">
+            </div>
+            <div class="form-group field-chem">
+              <label class="form-label">Số CAS</label>
+              <input type="text" class="form-control font-mono" id="item-cas" placeholder="VD: 67-56-1">
+            </div>
+            <div class="form-group field-chem">
+              <label class="form-label">Mức Độ Nguy Hại</label>
+              <select class="form-control" id="item-hazard">
+                <option value="Thường">Thường / An toàn</option>
+                <option value="Độc Bảng A (Cực độc)">Độc Bảng A (Cực độc - Quản lý nghiêm ngặt)</option>
+                <option value="Độc bảng B & Dễ cháy">Độc bảng B & Dễ cháy</option>
+                <option value="Dễ cháy">Dễ cháy nổ (Flammable)</option>
+                <option value="Ăn mòn & Độc hại">Ăn mòn (Corrosive)</option>
+                <option value="Tiền chất ma túy">Tiền chất ma túy (Precursor)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Hãng Sản Xuất</label>
+              <input type="text" class="form-control" id="item-manufacturer" placeholder="VD: Merck, Thermo Fisher, Double A">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nước Xuất Xứ</label>
+              <input type="text" class="form-control" id="item-origin" placeholder="VD: Đức, Mỹ, Việt Nam">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Đơn Vị Tính (ĐVT) <span class="required">*</span></label>
+              <input type="text" class="form-control" id="item-unit" placeholder="VD: Chai, Hộp, Bộ, Ram, Lọ..." required>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label">Quy Cách Đóng Gói</label>
+              <input type="text" class="form-control" id="item-packing" placeholder="VD: Chai 2.5 Lít, Hộp 200 phản ứng, Ram 500 tờ">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Vị Trí Ngăn Kệ Lưu Kho</label>
+              <input type="text" class="form-control" id="item-location" placeholder="VD: Tủ đông TĐ-01, Kệ B2 Tầng 1">
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label">Điều Kiện Bảo Quản</label>
+              <input type="text" class="form-control" id="item-storage" placeholder="VD: Âm sâu -20°C, Lạnh 2-8°C, Tủ chống cháy, Nhiệt độ phòng">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Định Mức Tồn Tối Thiểu</label>
+              <input type="number" class="form-control" id="item-min-stock" min="0" value="5" required>
+            </div>
+
+            <div class="form-group col-span-3">
+              <label class="form-label">Ghi Chú Nghiệp Vụ / Mục Đích Sử Dụng</label>
+              <textarea class="form-control" id="item-notes" rows="2" placeholder="Ghi chú thêm về mục đích giám định, khuyến cáo an toàn..."></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="modal-footer-summary">
+            <span style="color: var(--text-muted);">Mặt hàng phục vụ quản lý theo dõi tại Trung tâm Pháp y</span>
+          </div>
+          <div class="modal-footer-actions">
+            <button type="button" class="btn btn-outline" id="btn-cancel-item-modal" style="padding: 10px 18px;">Hủy Bỏ</button>
+            <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 14px; font-weight: 700;">💾 LƯU MẶT HÀNG</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. MODAL: LẬP PHIẾU NHẬP KHO -->
+  <div class="modal-overlay" id="modal-stock-in">
+    <div class="modal-container modal-lg">
+      <div class="modal-header">
+        <h3>📥 LẬP PHIẾU NHẬP KHO VẬT TƯ / HÓA CHẤT</h3>
+        <button class="btn btn-outline btn-icon" id="btn-close-in-modal">&times;</button>
+      </div>
+      <form id="form-stock-in">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Kho Tiếp Nhận <span class="required">*</span></label>
+              <select class="form-control" id="in-warehouse" required>
+                <option value="CHEMICAL">Kho Hóa chất & Sinh phẩm Pháp y</option>
+                <option value="OFFICE">Kho Văn phòng phẩm</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ngày Nhập Kho <span class="required">*</span></label>
+              <input type="date" class="form-control" id="in-date" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Đơn Vị Cung Cấp / Nhà Thầu <span class="required">*</span></label>
+              <input type="text" class="form-control" id="in-supplier" placeholder="VD: Công ty CP Thiết bị Y sinh Á Châu" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Số Hóa Đơn / Hợp Đồng Mua Sắm</label>
+              <input type="text" class="form-control" id="in-invoice" placeholder="VD: HĐ-99824 / HĐMS-04/2026">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Người Giao Hàng</label>
+              <input type="text" class="form-control" id="in-deliverer" placeholder="Tên người giao (hoặc để trống để ký tay)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Thủ Kho Nhận Hàng</label>
+              <input type="text" class="form-control" id="in-receiver" value="Cử nhân Lê Văn Quý">
+            </div>
+            <div class="form-group col-span-2">
+              <label class="form-label">Lý Do / Căn Cứ Nhập Kho</label>
+              <input type="text" class="form-control" id="in-reason" placeholder="VD: Mua sắm thường quy đợt 2 phục vụ xét nghiệm độc chất và ADN">
+            </div>
+          </div>
+
+          <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h4 style="font-size: 15px; font-weight: 700; color: var(--text-main);">📋 Danh Sách Mặt Hàng Nhập Kho</h4>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-add-in-row">+ Thêm Dòng Mặt Hàng</button>
+            </div>
+
+            <table class="tr-items-table">
+              <thead>
+                <tr>
+                  <th style="width: 34%;">Mặt Hàng <span class="required">*</span></th>
+                  <th style="width: 15%;">Số Lô (Lot)</th>
+                  <th style="width: 15%;">Hạn Dùng (HSD)</th>
+                  <th style="width: 12%;">Số Lượng <span class="required">*</span></th>
+                  <th style="width: 18%;">Đơn Giá (VNĐ)</th>
+                  <th style="width: 6%; text-align: center;">Xóa</th>
+                </tr>
+              </thead>
+              <tbody id="in-items-tbody">
+                <!-- Dynamic input rows -->
+              </tbody>
+            </table>
+
+            <div style="margin-top: 12px; margin-bottom: 4px;">
+              <button type="button" class="btn btn-outline" id="btn-add-in-row-bottom" style="width: 100%; padding: 11px 16px; border: 2px dashed #0d9488; color: #0f766e; background: #f0fdfa; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; cursor: pointer;">
+                <span style="font-size: 18px;">➕</span> Thêm Dòng Mặt Hàng Tiếp Theo
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="modal-footer-summary">
+            <span>Tổng Giá Trị Phiếu Nhập: <strong id="in-total-summary" style="font-size: 16px; color: var(--primary-dark);">0 đ</strong></span>
+          </div>
+          <div class="modal-footer-actions">
+            <button type="button" class="btn btn-outline" id="btn-cancel-in-modal" style="padding: 10px 18px;">Hủy Bỏ</button>
+            <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 14px; font-weight: 700;">💾 HOÀN TẤT & LƯU PHIẾU NHẬP</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. MODAL: LẬP PHIẾU XUẤT KHO (CÓ FEFO) -->
+  <div class="modal-overlay" id="modal-stock-out">
+    <div class="modal-container modal-lg">
+      <div class="modal-header">
+        <h3>📤 LẬP PHIẾU XUẤT KHO VẬT TƯ / HÓA CHẤT</h3>
+        <button class="btn btn-outline btn-icon" id="btn-close-out-modal">&times;</button>
+      </div>
+      <form id="form-stock-out">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Xuất Từ Kho <span class="required">*</span></label>
+              <select class="form-control" id="out-warehouse" required>
+                <option value="CHEMICAL">Kho Hóa chất & Sinh phẩm Pháp y</option>
+                <option value="OFFICE">Kho Văn phòng phẩm</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ngày Xuất Kho <span class="required">*</span></label>
+              <input type="date" class="form-control" id="out-date" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Khoa / Phòng Ban Nhận <span class="required">*</span></label>
+              <select class="form-control" id="out-department" required></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mã Số Vụ Án / Hồ Sơ Giám Định</label>
+              <input type="text" class="form-control" id="out-case-code" placeholder="VD: Vụ án #HS-2026-042 hoặc Cấp phát thường quy">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Cán Bộ / KTV Nhận Hàng</label>
+              <input type="text" class="form-control" id="out-receiver" placeholder="VD: Tên cán bộ nhận (hoặc để trống để ký tay)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Lãnh Đạo / Trưởng Khoa Duyệt</label>
+              <input type="text" class="form-control" id="out-approver" placeholder="Để trống để lãnh đạo ký và ghi tay">
+            </div>
+            <div class="form-group col-span-2">
+              <label class="form-label">Mục Đích / Lý Do Xuất</label>
+              <input type="text" class="form-control" id="out-reason" placeholder="VD: Phục vụ giám định độc chất ma túy vụ án tử vong nghi sốc thuốc...">
+            </div>
+          </div>
+
+          <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h4 style="font-size: 15px; font-weight: 700; color: var(--text-main);">📋 Danh Sách Mặt Hàng Xuất (Tự Động Gợi Ý Lô FEFO)</h4>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-add-out-row">+ Thêm Dòng Mặt Hàng</button>
+            </div>
+
+            <table class="tr-items-table">
+              <thead>
+                <tr>
+                  <th style="width: 38%;">Mặt Hàng & Tồn Hiện Tại <span class="required">*</span></th>
+                  <th style="width: 34%;">Lô Xuất & HSD (FEFO Gợi Ý)</th>
+                  <th style="width: 20%;">Số Lượng Xuất <span class="required">*</span></th>
+                  <th style="width: 8%; text-align: center;">Xóa</th>
+                </tr>
+              </thead>
+              <tbody id="out-items-tbody">
+                <!-- Dynamic output rows -->
+              </tbody>
+            </table>
+
+            <div style="margin-top: 12px; margin-bottom: 4px;">
+              <button type="button" class="btn btn-outline" id="btn-add-out-row-bottom" style="width: 100%; padding: 11px 16px; border: 2px dashed #2563eb; color: #1d4ed8; background: #eff6ff; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; cursor: pointer;">
+                <span style="font-size: 18px;">➕</span> Thêm Dòng Mặt Hàng Tiếp Theo
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="modal-footer-summary">
+            <span>Tổng Giá Trị Xuất: <strong id="out-total-summary" style="font-size: 16px; color: var(--secondary);">0 đ</strong></span>
+          </div>
+          <div class="modal-footer-actions">
+            <button type="button" class="btn btn-outline" id="btn-cancel-out-modal" style="padding: 10px 18px;">Hủy Bỏ</button>
+            <button type="submit" class="btn btn-secondary" style="padding: 10px 24px; font-size: 14px; font-weight: 700; background-color: var(--secondary);">💾 HOÀN TẤT & LƯU PHIẾU XUẤT</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. MODAL: XEM THẺ KHO CHI TIẾT -->
+  <div class="modal-overlay" id="modal-stock-card">
+    <div class="modal-container modal-lg">
+      <div class="modal-header">
+        <h3 id="modal-stock-card-title">Thẻ Kho Chi Tiết</h3>
+        <button class="btn btn-outline btn-icon" id="btn-close-card-modal">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-stock-card-body">
+        <!-- Dynamic Stock Card Details & History -->
+      </div>
+      <div class="modal-footer">
+        <div class="modal-footer-summary">
+          <span class="text-muted">Biểu mẫu Thẻ Kho S12-DN theo quy định kế toán Bộ Tài chính</span>
+        </div>
+        <div class="modal-footer-actions">
+          <button type="button" class="btn btn-outline" id="btn-cancel-card-modal" style="padding: 10px 18px;">Đóng</button>
+          <button type="button" class="btn btn-primary" id="btn-print-stock-card" style="padding: 10px 22px; font-weight: 700;">🖨️ In Thẻ Kho Khổ A4</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- JS SCRIPTS (Tự động nạp app.js dù ở trong thư mục js/app.js hay để cùng cấp app.js) -->
+  <script src="js/app.js" onerror="var s=document.createElement('script');s.src='app.js';document.body.appendChild(s);"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        if (!document.querySelector('script[src="app.js"]') && typeof ForensicStorage === 'undefined') {
+          var fb = document.createElement('script');
+          fb.src = 'app.js';
+          document.body.appendChild(fb);
+        }
+      }, 150);
+    });
+  </script>
+</body>
+</html>
