@@ -1979,17 +1979,18 @@
     if (targetView) targetView.style.display = 'block';
 
     const titles = {
-      dashboard: { title: 'Bảng Điều Khiển Tổng Quan', desc: 'Hệ thống cơ sở dữ liệu kho vật tư hóa chất & văn phòng phẩm' },
-      inventory: { title: 'Danh Mục Cơ Sở Dữ Liệu 2 Kho', desc: 'Quản lý chi tiết hóa chất, sinh phẩm, số Lô, hạn dùng và VPP' },
-      transactions: { title: 'Lịch Sử Giao Dịch Nhập / Xuất', desc: 'Theo dõi các phiếu nhập hàng và phiếu cấp phát khoa phòng' },
-      alerts: { title: 'Trung Tâm Cảnh Báo Khẩn Cấp', desc: 'Kiểm soát hạn sử dụng hóa chất và định mức tồn kho tối thiểu' },
-      reports: { title: 'Báo Cáo Tổng Hợp & In Thẻ Kho', desc: 'Báo cáo Xuất - Nhập - Tồn (XNT), tiêu hao khoa phòng & Thẻ kho A4' },
-      settings: { title: 'Cài Đặt Đơn Vị & Sao Lưu CSDL', desc: 'Thông tin cơ quan, thủ kho, sao lưu và khôi phục cơ sở dữ liệu' }
+      dashboard: 'Dashboard',
+      inventory: 'Danh Mục Kho',
+      transactions: 'Lịch Sử Nhập / Xuất',
+      alerts: 'Dashboard',
+      reports: 'Báo Cáo & Thẻ Kho',
+      settings: 'Cài Đặt Hệ Thống'
     };
 
     if (titles[viewName]) {
-      $('#current-page-title').textContent = titles[viewName].title;
-      $('#current-page-desc').textContent = titles[viewName].desc;
+      $('#current-page-title').textContent = titles[viewName];
+      const descEl = $('#current-page-desc');
+      if (descEl) descEl.textContent = '';
     }
 
     renderCurrentView();
