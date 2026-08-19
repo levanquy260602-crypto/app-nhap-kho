@@ -178,7 +178,7 @@ export function printStockInReceipt(tr, settings) {
       <div class="title-section">
         <div class="main-title">PHIẾU NHẬP KHO</div>
         <div class="sub-title">Ngày ${day} tháng ${month} năm ${year}</div>
-        <div>Số phiếu: <strong>${tr.code}</strong></div>
+        <div>Số phiếu: <strong>${tr.code || '................................'}</strong></div>
       </div>
 
       <table class="info-grid">
@@ -336,7 +336,7 @@ export function printStockOutReceipt(tr, settings) {
       <div class="title-section">
         <div class="main-title">PHIẾU XUẤT KHO</div>
         <div class="sub-title">Ngày ${day} tháng ${month} năm ${year}</div>
-        <div>Số phiếu: <strong>${tr.code}</strong></div>
+        <div>Số phiếu: <strong>${tr.code || '................................'}</strong></div>
       </div>
 
       <table class="info-grid">
@@ -438,7 +438,7 @@ export function printInventoryReport(reportData, warehouseName, fromDate, toDate
     rowsHtml += `
       <tr>
         <td class="text-center">${index + 1}</td>
-        <td>${row.item.code}</td>
+        <td>${row.item.code || '---'}</td>
         <td><strong>${row.item.name}</strong></td>
         <td class="text-center">${row.item.unit}</td>
         <td class="text-right">${formatNumber(row.openingStock)}</td>
@@ -630,7 +630,7 @@ export function printStockCard(cardData, settings) {
 
       <div class="info-box">
         - <strong>Tên vật tư, hóa chất:</strong> ${item.name}<br>
-        - <strong>Mã số:</strong> ${item.code} | <strong>Đơn vị tính:</strong> ${item.unit} | <strong>Quy cách:</strong> ${item.packingSpec || 'N/A'}<br>
+        - <strong>Mã số:</strong> ${item.code || '---'} | <strong>Đơn vị tính:</strong> ${item.unit} | <strong>Quy cách:</strong> ${item.packingSpec || 'N/A'}<br>
         - <strong>Vị trí lưu kho:</strong> ${item.location || '---'} | <strong>ĐK Bảo quản:</strong> ${item.storageCondition || '---'}
       </div>
 

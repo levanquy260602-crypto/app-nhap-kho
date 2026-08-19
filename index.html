@@ -725,8 +725,8 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Mã Mặt Hàng / Mã VT <span class="required">*</span></label>
-              <input type="text" class="form-control font-mono" id="item-code" placeholder="VD: HC-ADN-03 hoặc VPP-06" required>
+              <label class="form-label">Mã Mặt Hàng / Mã VPP / Mã VT:</label>
+              <input type="text" class="form-control font-mono" id="item-code" placeholder="Tự đặt mã (VD: VPP-01, GIAY-A4) hoặc để trống">
             </div>
             <div class="form-group">
               <label class="form-label">Phân Loại Nhóm <span class="required">*</span></label>
@@ -820,6 +820,10 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
         <div class="modal-body">
           <div class="form-grid">
             <div class="form-group">
+              <label class="form-label">Số Chứng Từ / Số Phiếu Nhập:</label>
+              <input type="text" class="form-control font-mono" id="in-code" placeholder="Để trống để viết tay (hoặc tự điền VD: 01/PN-KTC)">
+            </div>
+            <div class="form-group">
               <label class="form-label">Kho Tiếp Nhận <span class="required">*</span></label>
               <select class="form-control" id="in-warehouse" required>
                 <option value="CHEMICAL">Kho Hóa chất & Sinh phẩm Pháp y</option>
@@ -906,6 +910,10 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
       <form id="form-stock-out">
         <div class="modal-body">
           <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Số Chứng Từ / Số Phiếu Xuất:</label>
+              <input type="text" class="form-control font-mono" id="out-code" placeholder="Để trống để viết tay (hoặc tự điền VD: 02/PX-GĐ)">
+            </div>
             <div class="form-group">
               <label class="form-label">Xuất Từ Kho <span class="required">*</span></label>
               <select class="form-control" id="out-warehouse" required>

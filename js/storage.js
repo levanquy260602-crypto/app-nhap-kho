@@ -1029,7 +1029,7 @@ class ForensicStorage {
       if (match) {
         history.push({
           date: tr.date,
-          code: tr.code,
+          code: tr.code || (tr.type === 'IN' ? 'PN (Ký tay)' : 'PX (Ký tay)'),
           type: tr.type,
           lotNumber: match.lotNumber || 'N/A',
           expiryDate: match.expiryDate || 'N/A',

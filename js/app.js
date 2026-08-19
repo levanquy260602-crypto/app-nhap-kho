@@ -1006,7 +1006,7 @@
         if (match) {
           history.push({
             date: tr.date,
-            code: tr.code,
+            code: tr.code || (tr.type === 'IN' ? 'PN (Ký tay)' : 'PX (Ký tay)'),
             type: tr.type,
             lotNumber: match.lotNumber || 'N/A',
             expiryDate: match.expiryDate || 'N/A',
@@ -1386,7 +1386,7 @@
         <div class="title-section">
           <div class="main-title">PHIẾU NHẬP KHO</div>
           <div class="sub-title">Ngày ${day} tháng ${month} năm ${year}</div>
-          <div>Số phiếu: <strong>${tr.code}</strong></div>
+          <div>Số phiếu: <strong>${tr.code || '................................'}</strong></div>
         </div>
 
         <table class="info-grid">
@@ -1541,7 +1541,7 @@
         <div class="title-section">
           <div class="main-title">PHIẾU XUẤT KHO</div>
           <div class="sub-title">Ngày ${day} tháng ${month} năm ${year}</div>
-          <div>Số phiếu: <strong>${tr.code}</strong></div>
+          <div>Số phiếu: <strong>${tr.code || '................................'}</strong></div>
         </div>
 
         <table class="info-grid">
@@ -1638,7 +1638,7 @@
       rowsHtml += `
         <tr>
           <td class="text-center">${index + 1}</td>
-          <td>${row.item.code}</td>
+          <td>${row.item.code || '---'}</td>
           <td><strong>${row.item.name}</strong></td>
           <td class="text-center">${row.item.unit}</td>
           <td class="text-right">${formatNumber(row.openingStock)}</td>
@@ -1827,7 +1827,7 @@
 
         <div class="info-box">
           - <strong>Tên vật tư, hóa chất:</strong> ${item.name}<br>
-          - <strong>Mã số:</strong> ${item.code} | <strong>Đơn vị tính:</strong> ${item.unit} | <strong>Quy cách:</strong> ${item.packingSpec || 'N/A'}<br>
+          - <strong>Mã số:</strong> ${item.code || '---'} | <strong>Đơn vị tính:</strong> ${item.unit} | <strong>Quy cách:</strong> ${item.packingSpec || 'N/A'}<br>
           - <strong>Vị trí lưu kho:</strong> ${item.location || '---'} | <strong>ĐK Bảo quản:</strong> ${item.storageCondition || '---'}
         </div>
 
@@ -2219,7 +2219,7 @@
         <tr>
           <td class="text-center">${index + 1}</td>
           <td>
-            <span class="font-mono font-bold">${item.code}</span><br>
+            <span class="font-mono font-bold">${item.code || '<em class="text-muted" style="font-weight: normal; font-size: 11.5px;">(Chưa có mã)</em>'}</span><br>
             <span class="tag ${isChem ? 'tag-chemical' : 'tag-office'}" style="font-size: 10px; margin-top: 2px;">
               ${isChem ? 'Hóa chất' : 'VPP'}
             </span>
@@ -2294,7 +2294,7 @@
       tbody.innerHTML += `
         <tr>
           <td>
-            <span class="font-mono font-bold">${tr.code}</span><br>
+            <span class="font-mono font-bold">${tr.code || '<em class="text-muted" style="font-weight: normal; font-size: 11.5px;">(Chưa ghi số - Ký tay)</em>'}</span><br>
             <small class="text-muted">${tr.items.length} mặt hàng</small>
           </td>
           <td>
@@ -2343,7 +2343,7 @@
       alerts.expired.forEach(ex => {
         expTbody.innerHTML += `
           <tr>
-            <td><strong>${ex.item.name}</strong><br><small class="font-mono text-muted">${ex.item.code}</small></td>
+            <td><strong>${ex.item.name}</strong>${ex.item.code ? `<br><small class="font-mono text-muted">${ex.item.code}</small>` : ''}</td>
             <td class="font-mono font-bold">${ex.batch.lotNumber}</td>
             <td><strong style="color: var(--danger);">${formatDate(ex.batch.expiryDate)}</strong></td>
             <td><span class="tag tag-danger">Quá ${ex.daysOverdue} ngày</span></td>
@@ -2367,7 +2367,7 @@
       alerts.expiringSoon.forEach(es => {
         expSoonTbody.innerHTML += `
           <tr>
-            <td><strong>${es.item.name}</strong><br><small class="font-mono text-muted">${es.item.code}</small></td>
+            <td><strong>${es.item.name}</strong>${es.item.code ? `<br><small class="font-mono text-muted">${es.item.code}</small>` : ''}</td>
             <td class="font-mono font-bold">${es.batch.lotNumber}</td>
             <td><strong style="color: var(--warning-dark);">${formatDate(es.batch.expiryDate)}</strong></td>
             <td><span class="tag tag-warning">Còn ${es.daysLeft} ngày</span></td>
@@ -2390,7 +2390,7 @@
       alerts.lowStock.forEach(ls => {
         lowTbody.innerHTML += `
           <tr>
-            <td><strong>${ls.item.name}</strong><br><small class="font-mono text-muted">${ls.item.code}</small></td>
+            <td><strong>${ls.item.name}</strong>${ls.item.code ? `<br><small class="font-mono text-muted">${ls.item.code}</small>` : ''}</td>
             <td><span class="tag ${ls.item.warehouseId === 'CHEMICAL' ? 'tag-chemical' : 'tag-office'}">${ls.item.warehouseId === 'CHEMICAL' ? 'Hóa chất' : 'VPP'}</span></td>
             <td class="text-right font-bold" style="color: var(--danger); font-size: 14px;">${ls.totalQty}</td>
             <td class="text-right font-bold">${ls.minStock}</td>
@@ -2432,7 +2432,7 @@
       tbody.innerHTML += `
         <tr>
           <td class="text-center">${index + 1}</td>
-          <td class="font-mono font-bold">${row.item.code}</td>
+          <td class="font-mono font-bold">${row.item.code || '---'}</td>
           <td><strong>${row.item.name}</strong></td>
           <td class="text-center">${row.item.unit}</td>
           <td class="text-right">${formatNumber(row.openingStock)}</td>
@@ -2587,8 +2587,7 @@
     } else {
       $('#modal-item-title').textContent = 'Thêm Mặt Hàng / Hóa Chất Mới';
       $('#item-id').value = '';
-      const prefix = $('#item-warehouse').value === 'CHEMICAL' ? 'HC' : 'VPP';
-      $('#item-code').value = `${prefix}-${Date.now().toString().slice(-4)}`;
+      $('#item-code').value = '';
     }
 
     modal.classList.add('open');
@@ -2640,6 +2639,7 @@
     const form = $('#form-stock-in');
     form.reset();
 
+    if ($('#in-code')) $('#in-code').value = '';
     const today = new Date().toISOString().split('T')[0];
     $('#in-date').value = today;
     $('#in-warehouse').value = state.currentWarehouse === 'OFFICE' ? 'OFFICE' : 'CHEMICAL';
@@ -2677,7 +2677,7 @@
           <div style="font-size: 11.5px; font-weight: 700; color: var(--primary-dark); margin-bottom: 6px;">⭐ Nhập Thông Tin Mặt Hàng Mới (Tự lưu vào Danh mục Kho):</div>
           <input type="text" class="form-control in-custom-name" placeholder="* Tên mặt hàng mới (VD: Que test ma túy loại mới...)" style="margin-bottom: 6px;">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-            <input type="text" class="form-control font-mono in-custom-code" placeholder="Mã VT (tùy chọn)">
+            <input type="text" class="form-control font-mono in-custom-code" placeholder="Mã VT/VPP (tự điền hoặc để trống)">
             <input type="text" class="form-control in-custom-unit" placeholder="* ĐVT (Chai, Lọ, Bộ, Ram...)" value="Hộp">
           </div>
         </div>
@@ -2736,6 +2736,7 @@
     const form = $('#form-stock-out');
     form.reset();
 
+    if ($('#out-code')) $('#out-code').value = '';
     const today = new Date().toISOString().split('T')[0];
     $('#out-date').value = today;
     $('#out-warehouse').value = state.currentWarehouse === 'OFFICE' ? 'OFFICE' : 'CHEMICAL';
@@ -2934,7 +2935,7 @@
     $('#modal-stock-card-body').innerHTML = `
       <div style="background: var(--bg-alt); padding: 14px; border-radius: var(--radius-md); margin-bottom: 16px; border: 1px solid var(--border);">
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: 13px;">
-          <div><strong>Mã VT:</strong> <span class="font-mono">${item.code}</span></div>
+          <div><strong>Mã VT/VPP:</strong> <span class="font-mono">${item.code || '---'}</span></div>
           <div><strong>ĐVT:</strong> ${item.unit}</div>
           <div><strong>Quy cách:</strong> ${item.packingSpec || 'N/A'}</div>
           <div><strong>Vị trí kho:</strong> ${item.location || '---'}</div>
@@ -3213,7 +3214,7 @@
 
         if (itemId === '__CUSTOM__') {
           const customName = row.querySelector('.in-custom-name').value.trim();
-          const customCode = row.querySelector('.in-custom-code').value.trim() || (wh === 'CHEMICAL' ? 'HC-' + Date.now().toString().slice(-4) : 'VPP-' + Date.now().toString().slice(-4));
+          const customCode = row.querySelector('.in-custom-code').value.trim();
           const customUnit = row.querySelector('.in-custom-unit').value.trim() || 'Cái';
 
           if (!customName) return;
@@ -3268,9 +3269,9 @@
         return;
       }
 
-      const dateStr = $('#in-date').value.replace(/-/g, '');
+      const enteredCode = $('#in-code') ? $('#in-code').value.trim() : '';
       const tr = {
-        code: `PN-${dateStr}-${Date.now().toString().slice(-3)}`,
+        code: enteredCode,
         warehouseId: wh,
         date: $('#in-date').value,
         supplier: $('#in-supplier').value.trim(),
@@ -3284,10 +3285,10 @@
 
       db.createStockInTransaction(tr);
       $('#modal-stock-in').classList.remove('open');
-      showToast(`Đã lập Phiếu Nhập Kho ${tr.code} thành công!`);
+      showToast(`Đã lập Phiếu Nhập Kho thành công!${tr.code ? ` (${tr.code})` : ''}`);
       renderCurrentView();
 
-      if (confirm(`Phiếu nhập kho ${tr.code} đã lưu. Bạn có muốn in Phiếu Nhập Kho A4 ngay bây giờ?`)) {
+      if (confirm(`Phiếu nhập kho${tr.code ? ` (${tr.code})` : ''} đã lưu. Bạn có muốn in Phiếu Nhập Kho A4 ngay bây giờ?`)) {
         printStockInReceipt(tr, db.getData().settings);
       }
     };
@@ -3391,9 +3392,9 @@
       const selectedDeptId = deptSelect.value;
       const deptObj = DEPARTMENTS.find(d => d.id === selectedDeptId);
 
-      const dateStr = $('#out-date').value.replace(/-/g, '');
+      const enteredCode = $('#out-code') ? $('#out-code').value.trim() : '';
       const tr = {
-        code: `PX-${dateStr}-${Date.now().toString().slice(-3)}`,
+        code: enteredCode,
         warehouseId: wh,
         date: $('#out-date').value,
         departmentId: selectedDeptId,
@@ -3409,10 +3410,10 @@
 
       db.createStockOutTransaction(tr);
       $('#modal-stock-out').classList.remove('open');
-      showToast(`Đã lập Phiếu Xuất Kho ${tr.code} thành công!`);
+      showToast(`Đã lập Phiếu Xuất Kho thành công!${tr.code ? ` (${tr.code})` : ''}`);
       renderCurrentView();
 
-      if (confirm(`Phiếu xuất kho ${tr.code} đã lưu. Bạn có muốn in Phiếu Xuất Kho A4 ngay bây giờ?`)) {
+      if (confirm(`Phiếu xuất kho${tr.code ? ` (${tr.code})` : ''} đã lưu. Bạn có muốn in Phiếu Xuất Kho A4 ngay bây giờ?`)) {
         printStockOutReceipt(tr, db.getData().settings);
       }
     };
