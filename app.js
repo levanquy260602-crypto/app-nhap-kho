@@ -4274,22 +4274,30 @@ if (typeof module !== "undefined" && module.exports) {
     });
   }
 
-  // Helper: Cập nhật tổng tiền tức thời trong Modal Nhập Kho
+  // Helper: Cập nhật tổng tiền và số mặt hàng trong Modal Nhập Kho
   function updateInModalTotal() {
     let total = 0;
+    let count = 0;
     $$('#in-items-tbody tr').forEach(row => {
+      const select = row.querySelector('.in-item-select');
+      if (select && select.value) count++;
       const qty = Number(row.querySelector('.in-qty')?.value) || 0;
       const price = Number(row.querySelector('.in-price')?.value) || 0;
       total += qty * price;
     });
     const sumEl = $('#in-total-summary');
     if (sumEl) sumEl.textContent = formatCurrency(total);
+    const countEl = $('#in-items-count');
+    if (countEl) countEl.textContent = count;
   }
 
-  // Helper: Cập nhật tổng tiền tức thời trong Modal Xuất Kho
+  // Helper: Cập nhật tổng tiền và số mặt hàng trong Modal Xuất Kho
   function updateOutModalTotal() {
     let total = 0;
+    let count = 0;
     $$('#out-items-tbody tr').forEach(row => {
+      const select = row.querySelector('.out-item-select');
+      if (select && select.value) count++;
       const qty = Number(row.querySelector('.out-qty')?.value) || 0;
       const lotSelect = row.querySelector('.out-lot-select');
       const opt = lotSelect ? lotSelect.options[lotSelect.selectedIndex] : null;
@@ -4298,6 +4306,8 @@ if (typeof module !== "undefined" && module.exports) {
     });
     const sumEl = $('#out-total-summary');
     if (sumEl) sumEl.textContent = formatCurrency(total);
+    const countEl = $('#out-items-count');
+    if (countEl) countEl.textContent = count;
   }
 
   function openStockInModal(suggestItemId = null) {
@@ -4326,7 +4336,7 @@ if (typeof module !== "undefined" && module.exports) {
     let optionsHtml = '';
     items.forEach(item => {
       const selected = item.id === preselectedItemId ? 'selected' : '';
-      optionsHtml += `<option value="${item.id}" ${selected}>${item.code} - ${item.name} (${item.unit})</option>`;
+      optionsHtml += `<option value="${item.id}" data-unit="${item.unit}" ${selected}>${item.code} - ${item.name} (${item.unit})</option>`;
     });
 
     const row = document.createElement('tr');
@@ -4341,31 +4351,70 @@ if (typeof module !== "undefined" && module.exports) {
         </select>
         <div class="in-custom-container" style="display: none; margin-top: 8px; background: #f0fdfa; padding: 10px; border-radius: 6px; border: 1px dashed var(--primary);">
           <div style="font-size: 11.5px; font-weight: 700; color: var(--primary-dark); margin-bottom: 6px;">⭐ Nhập Thông Tin Mặt Hàng Mới (Tự lưu vào Danh mục Kho):</div>
-          <input type="text" class="form-control in-custom-name" placeholder="* Tên mặt hàng mới (VD: Que test ma túy loại mới...)" style="margin-bottom: 6px;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-            <input type="text" class="form-control font-mono in-custom-code" placeholder="Mã VT/VPP (tự điền hoặc để trống)">
-            <input type="text" class="form-control in-custom-unit" placeholder="* ĐVT (Chai, Lọ, Bộ, Ram...)" value="Hộp">
-          </div>
+          <input type="text" class="form-control in-custom-name" placeholder="* Tên mặt hàng mới (VD: Que test ma túy loại mới, Giấy in...)" style="margin-bottom: 6px;">
+          <input type="text" class="form-control font-mono in-custom-code" placeholder="Mã VT/VPP (tự điền hoặc để trống)">
         </div>
       </td>
-      <td><input type="text" class="form-control font-mono in-lot" placeholder="Số Lô" required></td>
-      <td><input type="date" class="form-control in-exp" value="2027-12-31"></td>
-      <td><input type="number" class="form-control in-qty" min="1" value="10" required></td>
-      <td><input type="number" class="form-control in-price" min="0" value="100000" step="1000"></td>
-      <td class="text-center"><button type="button" class="btn btn-outline btn-sm btn-remove-row" style="color: var(--danger); font-size: 16px; font-weight: bold;">&times;</button></td>
+      <td>
+        <input type="text" class="form-control in-unit" placeholder="ĐVT" value="Cái">
+      </td>
+      <td>
+        <input type="text" class="form-control font-mono in-lot" placeholder="Số Lô (tùy chọn)">
+      </td>
+      <td>
+        <input type="date" class="form-control in-exp">
+      </td>
+      <td>
+        <input type="number" class="form-control in-qty" min="1" value="1" required>
+      </td>
+      <td>
+        <input type="number" class="form-control in-price" min="0" step="any" placeholder="0" value="0">
+      </td>
+      <td class="text-center">
+        <button type="button" class="btn btn-outline btn-sm btn-remove-row" style="color: var(--danger); font-size: 16px; font-weight: bold;">&times;</button>
+      </td>
     `;
 
     tbody.appendChild(row);
 
-    const qtyInput = row.querySelector('.in-qty');
-    const priceInput = row.querySelector('.in-price');
     const select = row.querySelector('.in-item-select');
+    const unitInput = row.querySelector('.in-unit');
     const customContainer = row.querySelector('.in-custom-container');
     const customNameInput = row.querySelector('.in-custom-name');
-    const customUnitInput = row.querySelector('.in-custom-unit');
+    const qtyInput = row.querySelector('.in-qty');
+    const priceInput = row.querySelector('.in-price');
 
     qtyInput.addEventListener('input', updateInModalTotal);
     priceInput.addEventListener('input', updateInModalTotal);
+
+    select.addEventListener('change', () => {
+      if (select.value === '__CUSTOM__') {
+        customContainer.style.display = 'block';
+        customNameInput.required = true;
+        if (!unitInput.value) unitInput.value = 'Cái';
+      } else {
+        customContainer.style.display = 'none';
+        customNameInput.required = false;
+        const it = db.getItemById(select.value);
+        if (it) {
+          unitInput.value = it.unit || 'Cái';
+          if (it.batches && it.batches.length > 0) {
+            priceInput.value = it.batches[0].unitPrice || 0;
+          }
+        }
+      }
+      updateInModalTotal();
+    });
+
+    if (preselectedItemId) {
+      const it = db.getItemById(preselectedItemId);
+      if (it) {
+        unitInput.value = it.unit || 'Cái';
+        if (it.batches && it.batches.length > 0) {
+          priceInput.value = it.batches[0].unitPrice || 0;
+        }
+      }
+    }
 
     row.querySelector('.btn-remove-row').addEventListener('click', () => {
       if (tbody.children.length > 1) {
@@ -4374,23 +4423,6 @@ if (typeof module !== "undefined" && module.exports) {
       } else {
         showToast('Phiếu nhập phải có ít nhất 1 mặt hàng!', 'warning');
       }
-    });
-
-    select.addEventListener('change', () => {
-      if (select.value === '__CUSTOM__') {
-        customContainer.style.display = 'block';
-        customNameInput.required = true;
-        customUnitInput.required = true;
-      } else {
-        customContainer.style.display = 'none';
-        customNameInput.required = false;
-        customUnitInput.required = false;
-        const it = db.getItemById(select.value);
-        if (it && it.batches && it.batches.length > 0) {
-          priceInput.value = it.batches[0].unitPrice || 0;
-        }
-      }
-      updateInModalTotal();
     });
 
     updateInModalTotal();
@@ -4441,7 +4473,6 @@ if (typeof module !== "undefined" && module.exports) {
         <div class="out-custom-container" style="display: none; margin-top: 8px; background: #eff6ff; padding: 10px; border-radius: 6px; border: 1px dashed var(--secondary);">
           <div style="font-size: 11.5px; font-weight: 700; color: var(--secondary); margin-bottom: 6px;">⭐ Nhập Tên Mặt Hàng Xuất Đột Xuất / Khác:</div>
           <input type="text" class="form-control out-custom-name" placeholder="* Tên mặt hàng xuất..." style="margin-bottom: 6px;">
-          <input type="text" class="form-control out-custom-unit" placeholder="* ĐVT (Cái, Lọ, Bộ, Ram...)" value="Cái">
         </div>
       </td>
       <td>
@@ -4449,16 +4480,21 @@ if (typeof module !== "undefined" && module.exports) {
           <select class="form-control out-lot-select" required>
             <option value="">-- Chọn Lô xuất --</option>
           </select>
-          <input type="text" class="form-control font-mono out-custom-lot" placeholder="Số Lô (tùy chọn)" value="LÔ-XUẤT" style="display: none; margin-top: 6px;">
+          <input type="text" class="form-control font-mono out-custom-lot" placeholder="Số Lô (tùy chọn)" value="LÔ-XUẤT" style="display: none;">
+        </div>
+      </td>
+      <td class="text-center">
+        <div class="out-unit-display" style="display: flex; align-items: center; justify-content: center;">
+          <span class="out-unit-label font-bold" style="font-size: 13px; color: var(--text-main);">---</span>
+          <input type="text" class="form-control out-custom-unit" placeholder="ĐVT" value="Cái" style="display: none; width: 70px; text-align: center; margin: 0 auto;">
         </div>
       </td>
       <td>
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <input type="number" class="form-control out-qty" min="1" value="1" required>
-          <span class="out-unit-label" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">---</span>
-        </div>
+        <input type="number" class="form-control out-qty" min="1" value="1" required>
       </td>
-      <td class="text-center"><button type="button" class="btn btn-outline btn-sm btn-remove-row" style="color: var(--danger); font-size: 16px; font-weight: bold;">&times;</button></td>
+      <td class="text-center">
+        <button type="button" class="btn btn-outline btn-sm btn-remove-row" style="color: var(--danger); font-size: 16px; font-weight: bold;">&times;</button>
+      </td>
     `;
 
     tbody.appendChild(row);
@@ -4467,21 +4503,21 @@ if (typeof module !== "undefined" && module.exports) {
     const lotSelect = row.querySelector('.out-lot-select');
     const customLotInput = row.querySelector('.out-custom-lot');
     const unitLabel = row.querySelector('.out-unit-label');
+    const customUnitInput = row.querySelector('.out-custom-unit');
     const qtyInput = row.querySelector('.out-qty');
     const customContainer = row.querySelector('.out-custom-container');
     const customNameInput = row.querySelector('.out-custom-name');
-    const customUnitInput = row.querySelector('.out-custom-unit');
 
     function updateLotDropdown() {
       const itemId = itemSelect.value;
       if (itemId === '__CUSTOM__') {
         customContainer.style.display = 'block';
         customNameInput.required = true;
-        customUnitInput.required = true;
         lotSelect.style.display = 'none';
         lotSelect.required = false;
         customLotInput.style.display = 'block';
-        unitLabel.textContent = customUnitInput.value || 'Cái';
+        unitLabel.style.display = 'none';
+        customUnitInput.style.display = 'block';
         qtyInput.max = 999999;
         updateOutModalTotal();
         return;
@@ -4489,10 +4525,11 @@ if (typeof module !== "undefined" && module.exports) {
 
       customContainer.style.display = 'none';
       customNameInput.required = false;
-      customUnitInput.required = false;
       lotSelect.style.display = 'block';
       lotSelect.required = true;
       customLotInput.style.display = 'none';
+      unitLabel.style.display = 'inline';
+      customUnitInput.style.display = 'none';
 
       lotSelect.innerHTML = '';
       if (!itemId) {
@@ -4504,7 +4541,7 @@ if (typeof module !== "undefined" && module.exports) {
 
       const item = db.getItemById(itemId);
       if (!item) return;
-      unitLabel.textContent = item.unit;
+      unitLabel.textContent = item.unit || 'Cái';
 
       const sortedBatches = [...(item.batches || [])].filter(b => b.quantity > 0).sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
 
@@ -4548,9 +4585,7 @@ if (typeof module !== "undefined" && module.exports) {
       updateOutModalTotal();
     });
     qtyInput.addEventListener('input', updateOutModalTotal);
-    customUnitInput.addEventListener('input', () => {
-      unitLabel.textContent = customUnitInput.value || 'Cái';
-    });
+    customUnitInput.addEventListener('input', updateOutModalTotal);
 
     if (preselectedItemId) {
       updateLotDropdown();
@@ -4977,12 +5012,11 @@ if (typeof module !== "undefined" && module.exports) {
 
         let itemCode = '';
         let itemName = '';
-        let unit = '';
+        let unit = row.querySelector('.in-unit')?.value?.trim() || 'Cái';
 
         if (itemId === '__CUSTOM__') {
-          const customName = row.querySelector('.in-custom-name').value.trim();
-          const customCode = row.querySelector('.in-custom-code').value.trim();
-          const customUnit = row.querySelector('.in-custom-unit').value.trim() || 'Cái';
+          const customName = row.querySelector('.in-custom-name')?.value?.trim();
+          const customCode = row.querySelector('.in-custom-code')?.value?.trim();
 
           if (!customName) return;
 
@@ -4992,7 +5026,7 @@ if (typeof module !== "undefined" && module.exports) {
             code: customCode,
             name: customName,
             category: wh === 'CHEMICAL' ? 'Hóa chất phân tích độc chất & Sắc ký' : 'Vật phẩm phục vụ phòng ban',
-            unit: customUnit,
+            unit: unit,
             minStock: 5,
             hazardLevel: 'Thường',
             storageCondition: 'Nhiệt độ phòng'
@@ -5007,14 +5041,14 @@ if (typeof module !== "undefined" && module.exports) {
           if (item) {
             itemCode = item.code;
             itemName = item.name;
-            unit = item.unit;
+            if (!unit) unit = item.unit || 'Cái';
           }
         }
 
-        const lotNumber = row.querySelector('.in-lot').value.trim() || 'LÔ-MỚI';
-        const expiryDate = row.querySelector('.in-exp').value || '2030-12-31';
-        const quantity = Number(row.querySelector('.in-qty').value) || 0;
-        const unitPrice = Number(row.querySelector('.in-price').value) || 0;
+        const lotNumber = row.querySelector('.in-lot')?.value?.trim() || 'LÔ-MỚI';
+        const expiryDate = row.querySelector('.in-exp')?.value?.trim() || '---';
+        const quantity = Number(row.querySelector('.in-qty')?.value) || 1;
+        const unitPrice = Number(row.querySelector('.in-price')?.value) || 0;
         const amount = quantity * unitPrice;
         totalAmount += amount;
 
@@ -5041,11 +5075,11 @@ if (typeof module !== "undefined" && module.exports) {
         code: enteredCode,
         warehouseId: wh,
         date: $('#in-date').value,
-        supplier: $('#in-supplier').value.trim(),
-        invoiceNumber: $('#in-invoice').value.trim(),
-        deliverer: $('#in-deliverer').value.trim(),
-        receiver: $('#in-receiver').value.trim(),
-        reason: $('#in-reason').value.trim(),
+        supplier: ($('#in-supplier') ? $('#in-supplier').value.trim() : '') || 'Nhà cung cấp',
+        invoiceNumber: ($('#in-invoice') ? $('#in-invoice').value.trim() : '') || '---',
+        deliverer: ($('#in-deliverer') ? $('#in-deliverer').value.trim() : '') || 'Người giao',
+        receiver: ($('#in-receiver') ? $('#in-receiver').value.trim() : '') || ($('#sidebar-user-name')?.textContent || 'Lê Văn Quý'),
+        reason: ($('#in-reason') ? $('#in-reason').value.trim() : '') || 'Nhập vật tư phục vụ công tác',
         totalAmount,
         items
       };
@@ -5101,13 +5135,13 @@ if (typeof module !== "undefined" && module.exports) {
         let lotNumber = '';
         let expiryDate = '';
         let unitPrice = 0;
-        const quantity = Number(row.querySelector('.out-qty').value) || 0;
+        const quantity = Number(row.querySelector('.out-qty').value) || 1;
 
         if (itemId === '__CUSTOM__') {
-          itemName = row.querySelector('.out-custom-name').value.trim();
-          unit = row.querySelector('.out-custom-unit').value.trim() || 'Cái';
-          itemCode = wh === 'CHEMICAL' ? 'HC-DX' : 'VPP-DX';
-          lotNumber = row.querySelector('.out-custom-lot').value.trim() || 'LÔ-XUẤT';
+          itemName = row.querySelector('.out-custom-name')?.value?.trim();
+          unit = row.querySelector('.out-custom-unit')?.value?.trim() || 'Cái';
+          itemCode = wh === 'CHEMICAL' ? 'VT-DX' : 'VPP-DX';
+          lotNumber = row.querySelector('.out-custom-lot')?.value?.trim() || 'LÔ-XUẤT';
           expiryDate = '---';
           unitPrice = 0;
           if (!itemName) return;
@@ -5116,14 +5150,14 @@ if (typeof module !== "undefined" && module.exports) {
           if (item) {
             itemCode = item.code;
             itemName = item.name;
-            unit = item.unit;
+            unit = item.unit || 'Cái';
           }
 
           const lotSelect = row.querySelector('.out-lot-select');
-          lotNumber = lotSelect.value;
-          const opt = lotSelect.options[lotSelect.selectedIndex];
+          lotNumber = lotSelect ? lotSelect.value : '';
+          const opt = lotSelect && lotSelect.selectedIndex >= 0 ? lotSelect.options[lotSelect.selectedIndex] : null;
           const maxAvailable = Number(opt?.getAttribute('data-qty')) || 0;
-          expiryDate = opt?.getAttribute('data-exp') || '';
+          expiryDate = opt?.getAttribute('data-exp') || '---';
           unitPrice = Number(opt?.getAttribute('data-price')) || 0;
 
           if (quantity > maxAvailable) {
@@ -5156,7 +5190,7 @@ if (typeof module !== "undefined" && module.exports) {
       }
 
       const deptSelect = $('#out-department');
-      const selectedDeptId = deptSelect.value;
+      const selectedDeptId = deptSelect ? deptSelect.value : '';
       const deptObj = DEPARTMENTS.find(d => d.id === selectedDeptId);
 
       const enteredCode = $('#out-code') ? $('#out-code').value.trim() : '';
@@ -5166,11 +5200,11 @@ if (typeof module !== "undefined" && module.exports) {
         date: $('#out-date').value,
         departmentId: selectedDeptId,
         departmentName: deptObj?.name || 'Khoa Phòng Khác',
-        caseCode: $('#out-case-code').value.trim(),
-        deliverer: $('#sidebar-user-name').textContent,
-        receiver: $('#out-receiver').value.trim(),
-        approver: $('#out-approver').value.trim(),
-        reason: $('#out-reason').value.trim(),
+        caseCode: ($('#out-case-code') ? $('#out-case-code').value.trim() : '') || 'Phục vụ thường quy',
+        deliverer: ($('#out-deliverer') ? $('#out-deliverer').value.trim() : '') || ($('#sidebar-user-name')?.textContent || 'Lê Văn Quý'),
+        receiver: ($('#out-receiver') ? $('#out-receiver').value.trim() : '') || 'Cán bộ nhận',
+        approver: ($('#out-approver') ? $('#out-approver').value.trim() : '') || 'Ban Giám đốc',
+        reason: ($('#out-reason') ? $('#out-reason').value.trim() : '') || 'Cấp phát vật tư phục vụ công tác',
         totalAmount,
         items
       };

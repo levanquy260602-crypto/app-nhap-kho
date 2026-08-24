@@ -920,13 +920,13 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
             <table class="table" id="table-stock-in-items">
               <thead>
                 <tr>
-                  <th style="width: 32%;">Tên Mặt Hàng / Vật Tư <span class="required">*</span></th>
-                  <th style="width: 14%;">Số Lô (Lot No)</th>
-                  <th style="width: 14%;">Hạn Dùng (Exp)</th>
+                  <th style="width: 30%;">Mặt Hàng Nhập <span class="required">*</span></th>
                   <th style="width: 10%;">ĐVT</th>
-                  <th style="width: 10%;">Số Lượng <span class="required">*</span></th>
-                  <th style="width: 13%;">Đơn Giá (VNĐ)</th>
-                  <th style="width: 7%;">Xóa</th>
+                  <th style="width: 15%;">Số Lô (Lot No)</th>
+                  <th style="width: 15%;">Hạn Dùng (Exp)</th>
+                  <th style="width: 12%;">Số Lượng <span class="required">*</span></th>
+                  <th style="width: 12%;">Đơn Giá (VNĐ)</th>
+                  <th style="width: 6%; text-align: center;">Xóa</th>
                 </tr>
               </thead>
               <tbody id="in-items-tbody">
@@ -1001,11 +1001,11 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
             <table class="table" id="table-stock-out-items">
               <thead>
                 <tr>
-                  <th style="width: 38%;">Mặt Hàng Cần Xuất <span class="required">*</span></th>
-                  <th style="width: 14%;">ĐVT</th>
-                  <th style="width: 16%;">Tồn Khả Dụng</th>
-                  <th style="width: 16%;">Số Lượng Xuất <span class="required">*</span></th>
-                  <th style="width: 16%;">Xóa</th>
+                  <th style="width: 36%;">Mặt Hàng Cần Xuất <span class="required">*</span></th>
+                  <th style="width: 28%;">Lô Xuất & Hạn Dùng (FEFO) *</th>
+                  <th style="width: 10%; text-align: center;">ĐVT</th>
+                  <th style="width: 18%;">Số Lượng Xuất <span class="required">*</span></th>
+                  <th style="width: 8%; text-align: center;">Xóa</th>
                 </tr>
               </thead>
               <tbody id="out-items-tbody">
