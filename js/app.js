@@ -2435,7 +2435,7 @@ if (typeof module !== "undefined" && module.exports) {
         const jsonStr = JSON.stringify(configObj);
         const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
         const base = (typeof window !== 'undefined' ? (window.location.origin + window.location.pathname) : '');
-        return `${base}#cloud=${encoded}`;
+        return `${base}?cloud=${encoded}`;
       } catch (err) {
         console.warn('Lỗi mã hóa link chia sẻ:', err);
         return null;
@@ -2904,12 +2904,8 @@ if (typeof module !== "undefined" && module.exports) {
         <tr>
           <td class="text-center">${index + 1}</td>
           <td><strong>${item.itemName}</strong><br><small class="text-muted">Mã: ${item.itemCode || ''}</small></td>
-          <td class="text-center font-mono">${item.lotNumber || '---'}</td>
-          <td class="text-center">${formatDate(item.expiryDate)}</td>
-          <td class="text-center">${item.unit}</td>
-          <td class="text-right font-bold">${formatNumber(item.quantity)}</td>
-          <td class="text-right">${formatCurrency(item.unitPrice)}</td>
-          <td class="text-right font-bold">${formatCurrency(item.amount)}</td>
+          <td class="text-center">${item.unit || 'Cái'}</td>
+          <td class="text-center font-bold">${formatNumber(item.quantity)}</td>
         </tr>
       `;
     });
@@ -2920,27 +2916,27 @@ if (typeof module !== "undefined" && module.exports) {
       <html lang="vi">
       <head>
         <meta charset="UTF-8">
-        <title>Phiếu Xuất Kho - ${tr.code}</title>
+        <title>Phiếu Xuất Kho - ${tr.code || ''}</title>
         <style>
           @page { size: A4 portrait; margin: 15mm; }
-          body { font-family: 'Times New Roman', serif; font-size: 13pt; line-height: 1.3; color: #000; margin: 0; padding: 0; }
+          body { font-family: 'Times New Roman', serif; font-size: 13pt; line-height: 1.35; color: #000; margin: 0; padding: 0; }
           .header-table { width: 100%; border: none; margin-bottom: 15px; }
           .header-table td { border: none; vertical-align: top; padding: 0; }
           .title-section { text-align: center; margin: 20px 0 15px 0; }
           .main-title { font-size: 16pt; font-weight: bold; text-transform: uppercase; margin: 0; }
           .sub-title { font-size: 12pt; font-style: italic; margin-top: 4px; }
           .info-grid { width: 100%; margin-bottom: 15px; }
-          .info-grid td { border: none; padding: 3px 0; font-size: 12pt; }
-          .content-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-          .content-table th, .content-table td { border: 1px solid #000; padding: 6px 8px; font-size: 11pt; }
+          .info-grid td { border: none; padding: 4px 0; font-size: 12.5pt; }
+          .content-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+          .content-table th, .content-table td { border: 1px solid #000; padding: 8px 10px; font-size: 12pt; }
           .content-table th { background: #f0f0f0; text-align: center; font-weight: bold; }
           .text-center { text-align: center; }
           .text-right { text-align: right; }
           .font-bold { font-weight: bold; }
           .font-mono { font-family: monospace; }
-          .signatures { width: 100%; margin-top: 25px; border: none; page-break-inside: avoid; }
-          .signatures td { border: none; text-align: center; vertical-align: top; width: 25%; font-size: 11.5pt; }
-          .sig-space { height: 75px; }
+          .signatures { width: 100%; margin-top: 30px; border: none; page-break-inside: avoid; }
+          .signatures td { border: none; text-align: center; vertical-align: top; width: 25%; font-size: 12pt; }
+          .sig-space { height: 95px; }
           .text-muted { color: #555; }
         </style>
       </head>
@@ -2950,7 +2946,7 @@ if (typeof module !== "undefined" && module.exports) {
             <td style="width: 45%; text-align: center;">
               <strong>${settings.parentOrg || 'SỞ Y TẾ THÀNH PHỐ HỒ CHÍ MINH'}</strong><br>
               <strong style="text-decoration: underline;">${settings.orgName || 'TRUNG TÂM PHÁP Y THÀNH PHỐ'}</strong><br>
-              <small style="font-size: 10pt;">Kho: ${tr.warehouseId === 'CHEMICAL' ? 'Kho Vật Tư' : 'Kho Văn Phòng Phẩm'}</small>
+              <small style="font-size: 10.5pt;">Kho: ${tr.warehouseId === 'CHEMICAL' ? 'Kho Vật Tư' : 'Kho Văn Phòng Phẩm'}</small>
             </td>
             <td style="width: 55%; text-align: center;">
               <strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br>
@@ -2969,42 +2965,23 @@ if (typeof module !== "undefined" && module.exports) {
         <table class="info-grid">
           <tr>
             <td style="width: 60%;"><strong>Đơn vị / Khoa phòng nhận:</strong> <span style="text-transform: uppercase; font-weight: bold;">${tr.departmentName || '---'}</span></td>
-            <td style="width: 40%;"><strong>Số Hồ sơ / Vụ án:</strong> ${tr.caseCode || 'Phục vụ thường quy'}</td>
-          </tr>
-          <tr>
-            <td><strong>Họ tên người nhận:</strong> ${(tr.receiver && tr.receiver !== '.') ? tr.receiver : ''}</td>
-            <td><strong>Thủ kho xuất:</strong> ${tr.deliverer || settings.storekeeper || 'Lê Văn Quý'}</td>
-          </tr>
-          <tr>
-            <td colspan="2"><strong>Lý do xuất kho:</strong> ${tr.reason || 'Xuất phục vụ công tác giám định pháp y'}</td>
+            <td style="width: 40%;"><strong>Họ tên người nhận:</strong> ${(tr.receiver && tr.receiver !== '.') ? tr.receiver : '................................'}</td>
           </tr>
         </table>
 
         <table class="content-table">
           <thead>
             <tr>
-              <th style="width: 5%;">STT</th>
-              <th style="width: 32%;">Tên Vật Tư / Hàng Hóa</th>
-              <th style="width: 14%;">Số Lô (Lot)</th>
-              <th style="width: 12%;">Hạn sử dụng</th>
-              <th style="width: 7%;">ĐVT</th>
-              <th style="width: 8%;">Số lượng</th>
-              <th style="width: 11%;">Đơn giá</th>
-              <th style="width: 11%;">Thành tiền</th>
+              <th style="width: 8%;">STT</th>
+              <th style="width: 62%;">Tên Vật Tư / Hàng Hóa</th>
+              <th style="width: 15%; text-align: center;">ĐVT</th>
+              <th style="width: 15%; text-align: center;">Số lượng</th>
             </tr>
           </thead>
           <tbody>
             ${rowsHtml}
-            <tr>
-              <td colspan="7" style="text-align: right; font-weight: bold;">Tổng giá trị xuất kho:</td>
-              <td class="text-right font-bold">${formatCurrency(tr.totalAmount)}</td>
-            </tr>
           </tbody>
         </table>
-
-        <div style="font-size: 11pt; margin-bottom: 15px;">
-          <em>Tổng số tiền (viết bằng chữ): <strong>${numberToVietnameseWords(tr.totalAmount)}</strong></em>
-        </div>
 
         <table class="signatures">
           <tr>
@@ -3012,25 +2989,21 @@ if (typeof module !== "undefined" && module.exports) {
               <strong>NGƯỜI LẬP PHIẾU</strong><br>
               <em>(Ký, ghi rõ họ tên)</em>
               <div class="sig-space"></div>
-              <strong>${settings.storekeeper || 'Lê Văn Quý'}</strong>
             </td>
             <td>
               <strong>NGƯỜI NHẬN HÀNG</strong><br>
               <em>(Ký, ghi rõ họ tên)</em>
               <div class="sig-space"></div>
-              <strong>${(tr.receiver && tr.receiver !== '.') ? tr.receiver : ''}</strong>
             </td>
             <td>
-              <strong>THỦ KHO</strong><br>
+              <strong>TRƯỞNG KHOA / TRƯỞNG PHÒNG</strong><br>
               <em>(Ký, ghi rõ họ tên)</em>
               <div class="sig-space"></div>
-              <strong>${tr.deliverer || settings.storekeeper || 'Lê Văn Quý'}</strong>
             </td>
             <td>
-              <strong>TRƯỞNG ĐƠN VỊ / LÃNH ĐẠO DUYỆT</strong><br>
-              <em>(Ký, ghi rõ họ tên)</em>
+              <strong>GIÁM ĐỐC</strong><br>
+              <em>(Ký, đóng dấu, ghi rõ họ tên)</em>
               <div class="sig-space"></div>
-              <strong>${tr.approver || settings.managerName || ''}</strong>
             </td>
           </tr>
         </table>
@@ -5207,11 +5180,11 @@ if (typeof module !== "undefined" && module.exports) {
         date: $('#out-date').value,
         departmentId: selectedDeptId,
         departmentName: deptObj?.name || 'Khoa Phòng Khác',
-        caseCode: ($('#out-case-code') ? $('#out-case-code').value.trim() : '') || 'Phục vụ thường quy',
-        deliverer: ($('#out-deliverer') ? $('#out-deliverer').value.trim() : '') || ($('#sidebar-user-name')?.textContent || 'Lê Văn Quý'),
-        receiver: ($('#out-receiver') ? $('#out-receiver').value.trim() : '') || 'Cán bộ nhận',
-        approver: ($('#out-approver') ? $('#out-approver').value.trim() : '') || 'Ban Giám đốc',
-        reason: ($('#out-reason') ? $('#out-reason').value.trim() : '') || 'Cấp phát vật tư phục vụ công tác',
+        caseCode: '',
+        deliverer: '',
+        receiver: ($('#out-receiver') ? $('#out-receiver').value.trim() : '') || '',
+        approver: '',
+        reason: '',
         totalAmount,
         items
       };
@@ -5401,6 +5374,36 @@ if (typeof module !== "undefined" && module.exports) {
           showToast(res.message + (res.hasData ? ' (Đã có dữ liệu)' : ' (Bảng mới)'));
         } else {
           showToast(res.message, 'danger');
+        }
+      };
+    }
+
+    if ($('#btn-apply-quick-sync')) {
+      $('#btn-apply-quick-sync').onclick = async () => {
+        const raw = $('#input-quick-sync-token')?.value?.trim();
+        if (!raw) {
+          showToast('Vui lòng dán đường link hoặc mã chia sẻ vào ô!', 'warning');
+          return;
+        }
+        let token = raw;
+        if (raw.includes('cloud=')) {
+          const m = raw.match(/cloud=([^&#\s]+)/);
+          if (m) token = m[1];
+        }
+        try {
+          const decodedStr = decodeURIComponent(escape(atob(token)));
+          const config = JSON.parse(decodedStr);
+          if (config.url && config.key) {
+            $('#set-supabase-url').value = config.url;
+            $('#set-supabase-key').value = config.key;
+            if ($('#set-supabase-autosync')) $('#set-supabase-autosync').checked = true;
+            $('#btn-save-supabase').click();
+            showToast('🟢 Đã nhận diện cấu hình! Đang kích hoạt kết nối Đám Mây...', 'info');
+          } else {
+            showToast('Mã đồng bộ không đúng định dạng. Vui lòng kiểm tra lại!', 'danger');
+          }
+        } catch (e) {
+          showToast('Không thể giải mã link này. Vui lòng sao chép đúng link từ máy tính!', 'danger');
         }
       };
     }
