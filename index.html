@@ -493,69 +493,195 @@
 
         <!-- 5. VIEW: REPORTS & STOCK CARD -->
         <section id="view-reports" class="view-panel" style="display: none;">
-          <div class="card">
-            <div class="card-header">
-              <h3 class="card-title">📊 Báo Cáo Tổng Hợp Xuất - Nhập - Tồn Kho</h3>
-              <div class="toolbar-right">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <label style="font-size: 12.5px; font-weight: 600;">Từ ngày:</label>
-                  <input type="date" class="form-control" id="report-from-date">
-                  <label style="font-size: 12.5px; font-weight: 600;">Đến ngày:</label>
-                  <input type="date" class="form-control" id="report-to-date">
-                  <button class="btn btn-outline btn-sm" id="btn-filter-report">Lọc Báo Cáo</button>
+          <!-- REPORT SUB-NAVIGATION TABS -->
+          <div class="view-subnav" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 2px solid var(--border); padding-bottom: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm btn-primary report-tab-btn active" data-report-tab="xnt" id="tab-btn-report-xnt">
+              📊 Báo Cáo Xuất - Nhập - Tồn
+            </button>
+            <button type="button" class="btn btn-sm btn-outline report-tab-btn" data-report-tab="monthly-out" id="tab-btn-report-out">
+              📤 Báo Cáo Xuất Kho / Cấp Phát Khoa Phòng Theo Tháng
+            </button>
+            <button type="button" class="btn btn-sm btn-outline report-tab-btn" data-report-tab="monthly-in" id="tab-btn-report-in">
+              📥 Báo Cáo Bảng Kê Nhập Kho Theo Tháng
+            </button>
+          </div>
+
+          <!-- TAB 1: BÁO CÁO XUẤT - NHẬP - TỒN -->
+          <div class="report-tab-content" id="report-content-xnt">
+            <div class="card">
+              <div class="card-header" style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center;">
+                <h3 class="card-title">📊 Báo Cáo Tổng Hợp Xuất - Nhập - Tồn Kho</h3>
+                <div class="toolbar-right" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 12.5px; font-weight: 600;">Từ ngày:</label>
+                    <input type="date" class="form-control" id="report-from-date" style="min-width: 130px;">
+                    <label style="font-size: 12.5px; font-weight: 600;">Đến ngày:</label>
+                    <input type="date" class="form-control" id="report-to-date" style="min-width: 130px;">
+                    <button class="btn btn-outline btn-sm" id="btn-filter-report">🔍 Lọc</button>
+                  </div>
+                  <button class="btn btn-primary btn-sm" id="btn-print-inventory-report">🖨️ In Báo Cáo A4</button>
+                  <button class="btn btn-outline btn-sm" id="btn-export-inventory-excel">📥 Xuất Excel</button>
                 </div>
-                <button class="btn btn-primary btn-sm" id="btn-print-inventory-report">
-                  🖨️ In Báo Cáo A4
-                </button>
-                <button class="btn btn-outline btn-sm" id="btn-export-inventory-excel">
-                  📥 Xuất Excel
-                </button>
+              </div>
+              <div class="card-body" style="padding: 0;">
+                <div class="table-responsive">
+                  <table class="data-table" id="report-xnt-table">
+                    <thead>
+                      <tr>
+                        <th>STT</th>
+                        <th>Mã VT</th>
+                        <th>Tên Vật Tư / Hàng Hóa</th>
+                        <th class="text-center">ĐVT</th>
+                        <th class="text-right">Tồn Đầu Kỳ</th>
+                        <th class="text-right">Nhập Trong Kỳ</th>
+                        <th class="text-right">Xuất Trong Kỳ</th>
+                        <th class="text-right font-bold">Tồn Cuối Kỳ</th>
+                        <th class="text-right">Đơn Giá TB</th>
+                        <th class="text-right font-bold">Thành Tiền Cuối</th>
+                      </tr>
+                    </thead>
+                    <tbody id="report-xnt-tbody"></tbody>
+                  </table>
+                </div>
               </div>
             </div>
-            <div class="card-body" style="padding: 0;">
-              <div class="table-responsive">
-                <table class="data-table" id="report-xnt-table">
-                  <thead>
-                    <tr>
-                      <th>STT</th>
-                      <th>Mã VT</th>
-                      <th>Tên Vật Tư / Hàng Hóa</th>
-                      <th class="text-center">ĐVT</th>
-                      <th class="text-right">Tồn Đầu Kỳ</th>
-                      <th class="text-right">Nhập Trong Kỳ</th>
-                      <th class="text-right">Xuất Trong Kỳ</th>
-                      <th class="text-right font-bold">Tồn Cuối Kỳ</th>
-                      <th class="text-right">Đơn Giá TB</th>
-                      <th class="text-right font-bold">Thành Tiền Cuối</th>
-                    </tr>
-                  </thead>
-                  <tbody id="report-xnt-tbody"></tbody>
-                </table>
+
+            <!-- DEPARTMENT USAGE BREAKDOWN -->
+            <div class="card" style="margin-top: 20px;">
+              <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 class="card-title">🏢 Thống Kê Tổng Quát Cấp Phát Theo Khoa / Phòng</h3>
+                <button class="btn btn-outline btn-sm" id="btn-export-dept-excel">📥 Xuất Excel</button>
+              </div>
+              <div class="card-body" style="padding: 0;">
+                <div class="table-responsive">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>STT</th>
+                        <th>Tên Khoa / Phòng Ban Thụ Hưởng</th>
+                        <th>Mã Khoa</th>
+                        <th>Số Lượt Xuất</th>
+                        <th>Các Hạng Mục Chủ Yếu</th>
+                        <th class="text-right font-bold">Tổng Giá Trị Đã Cấp Phát</th>
+                      </tr>
+                    </thead>
+                    <tbody id="report-dept-tbody"></tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- DEPARTMENT USAGE BREAKDOWN -->
-          <div class="card">
-            <div class="card-header">
-              <h3 class="card-title">🏢 Thống Kê Cấp Phát Vật Tư Theo Khoa / Phòng Giám Định</h3>
-              <button class="btn btn-outline btn-sm" id="btn-export-dept-excel">📥 Xuất Excel</button>
+          <!-- TAB 2: BÁO CÁO XUẤT KHO / CẤP PHÁT KHOA PHÒNG THEO THÁNG -->
+          <div class="report-tab-content" id="report-content-monthly-out" style="display: none;">
+            <div class="card">
+              <div class="card-header" style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center;">
+                <div>
+                  <h3 class="card-title">📤 Báo Cáo Tổng Hợp Cấp Phát Vật Tư & VPP Cho Khoa / Phòng Theo Tháng</h3>
+                  <p style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">Tổng hợp số lượng vật tư / văn phòng phẩm từng Khoa/Phòng đã nhận trong tháng theo chuẩn mẫu Phiếu Xuất.</p>
+                </div>
+                <div class="toolbar-right" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                  <button class="btn btn-primary btn-sm" id="btn-print-monthly-out">🖨️ In Báo Cáo Cấp Phát A4</button>
+                  <button class="btn btn-outline btn-sm" id="btn-export-monthly-out-excel">📥 Xuất File Excel</button>
+                </div>
+              </div>
+              <div class="card-body" style="background: var(--bg-alt); border-bottom: 1px solid var(--border); padding: 12px 16px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 12.5px; font-weight: 700; color: var(--text-main);">Khoa / Phòng Nhận:</label>
+                    <select class="form-control" id="report-out-department" style="min-width: 220px; font-weight: 600;">
+                      <option value="ALL">-- Tất Cả Khoa / Phòng Ban --</option>
+                    </select>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 12.5px; font-weight: 700; color: var(--text-main);">Chọn Tháng:</label>
+                    <input type="month" class="form-control" id="report-out-month" style="width: 150px; font-weight: 600;">
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 12px; color: var(--text-muted);">Hoặc từ:</label>
+                    <input type="date" class="form-control" id="report-out-from-date" style="width: 130px;">
+                    <label style="font-size: 12px; color: var(--text-muted);">đến:</label>
+                    <input type="date" class="form-control" id="report-out-to-date" style="width: 130px;">
+                  </div>
+                  <button class="btn btn-primary btn-sm" id="btn-filter-monthly-out" style="padding: 6px 16px;">🔍 Xem Báo Cáo</button>
+                </div>
+              </div>
+              <div class="card-body" style="padding: 0;">
+                <div class="table-responsive">
+                  <table class="data-table" id="table-monthly-out-report">
+                    <thead>
+                      <tr>
+                        <th style="width: 6%; text-align: center;">STT</th>
+                        <th style="width: 36%;">Tên Vật Tư / Hàng Hóa</th>
+                        <th style="width: 10%; text-align: center;">ĐVT</th>
+                        <th style="width: 14%; text-align: center;">Tổng Số Lượng Nhận</th>
+                        <th style="width: 16%;">Khoa / Phòng Nhận</th>
+                        <th style="width: 18%;">Chi Tiết Đợt Nhận / Ghi Chú</th>
+                      </tr>
+                    </thead>
+                    <tbody id="report-monthly-out-tbody">
+                      <!-- Dynamic rows -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-            <div class="card-body" style="padding: 0;">
-              <div class="table-responsive">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>STT</th>
-                      <th>Tên Khoa / Phòng Ban Thụ Hưởng</th>
-                      <th>Mã Khoa</th>
-                      <th>Số Lượt Xuất</th>
-                      <th>Các Hạng Mục Chủ Yếu</th>
-                      <th class="text-right font-bold">Tổng Giá Trị Đã Cấp Phát</th>
-                    </tr>
-                  </thead>
-                  <tbody id="report-dept-tbody"></tbody>
-                </table>
+          </div>
+
+          <!-- TAB 3: BÁO CÁO BẢNG KÊ CHI TIẾT HÀNG NHẬP KHO THEO THÁNG -->
+          <div class="report-tab-content" id="report-content-monthly-in" style="display: none;">
+            <div class="card">
+              <div class="card-header" style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center;">
+                <div>
+                  <h3 class="card-title">📥 Báo Cáo Bảng Kê Chi Tiết Hàng Hóa Nhập Kho Theo Tháng</h3>
+                  <p style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">Liệt kê chi tiết toàn bộ các mặt hàng đã nhập trong tháng, số hóa đơn, ngày nhập, nhà cung cấp theo chuẩn Phiếu Nhập.</p>
+                </div>
+                <div class="toolbar-right" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                  <button class="btn btn-primary btn-sm" id="btn-print-monthly-in">🖨️ In Báo Cáo Nhập A4</button>
+                  <button class="btn btn-outline btn-sm" id="btn-export-monthly-in-excel">📥 Xuất File Excel</button>
+                </div>
+              </div>
+              <div class="card-body" style="background: var(--bg-alt); border-bottom: 1px solid var(--border); padding: 12px 16px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 12.5px; font-weight: 700; color: var(--text-main);">Chọn Tháng:</label>
+                    <input type="month" class="form-control" id="report-in-month" style="width: 150px; font-weight: 600;">
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 12px; color: var(--text-muted);">Hoặc từ:</label>
+                    <input type="date" class="form-control" id="report-in-from-date" style="width: 130px;">
+                    <label style="font-size: 12px; color: var(--text-muted);">đến:</label>
+                    <input type="date" class="form-control" id="report-in-to-date" style="width: 130px;">
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 12.5px; font-weight: 700; color: var(--text-main);">Nhà Cung Cấp:</label>
+                    <input type="text" class="form-control" id="report-in-supplier" placeholder="Tất cả hoặc gõ tìm NCC..." style="width: 180px;">
+                  </div>
+                  <button class="btn btn-primary btn-sm" id="btn-filter-monthly-in" style="padding: 6px 16px;">🔍 Xem Bảng Kê</button>
+                </div>
+              </div>
+              <div class="card-body" style="padding: 0;">
+                <div class="table-responsive">
+                  <table class="data-table" id="table-monthly-in-report">
+                    <thead>
+                      <tr>
+                        <th style="width: 5%; text-align: center;">STT</th>
+                        <th style="width: 10%;">Ngày Nhập</th>
+                        <th style="width: 11%;">Số Phiếu / Số HĐ</th>
+                        <th style="width: 14%;">Nhà Cung Cấp</th>
+                        <th style="width: 23%;">Tên Mặt Hàng / Vật Tư</th>
+                        <th style="width: 11%;">Số Lô / HSD</th>
+                        <th style="width: 6%; text-align: center;">ĐVT</th>
+                        <th style="width: 6%; text-align: center;">Số Lượng</th>
+                        <th style="width: 7%; text-align: right;">Đơn Giá</th>
+                        <th style="width: 7%; text-align: right;">Thành Tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody id="report-monthly-in-tbody">
+                      <!-- Dynamic rows -->
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -1011,11 +1137,12 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
             <table class="table" id="table-stock-out-items">
               <thead>
                 <tr>
-                  <th style="width: 36%;">Mặt Hàng Cần Xuất <span class="required">*</span></th>
-                  <th style="width: 28%;">Lô Xuất & Hạn Dùng (FEFO) *</th>
+                  <th style="width: 30%;">Mặt Hàng Cần Xuất <span class="required">*</span></th>
+                  <th style="width: 24%;">Lô Xuất & Hạn Dùng (FEFO) *</th>
                   <th style="width: 10%; text-align: center;">ĐVT</th>
-                  <th style="width: 18%;">Số Lượng Xuất <span class="required">*</span></th>
-                  <th style="width: 8%; text-align: center;">Xóa</th>
+                  <th style="width: 14%;">Số Lượng Xuất <span class="required">*</span></th>
+                  <th style="width: 16%;">Ghi Chú</th>
+                  <th style="width: 6%; text-align: center;">Xóa</th>
                 </tr>
               </thead>
               <tbody id="out-items-tbody">

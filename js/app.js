@@ -2906,6 +2906,7 @@ if (typeof module !== "undefined" && module.exports) {
           <td><strong>${item.itemName}</strong><br><small class="text-muted">Mã: ${item.itemCode || ''}</small></td>
           <td class="text-center">${item.unit || 'Cái'}</td>
           <td class="text-center font-bold">${formatNumber(item.quantity)}</td>
+          <td class="text-center">${item.notes || ''}</td>
         </tr>
       `;
     });
@@ -2972,10 +2973,11 @@ if (typeof module !== "undefined" && module.exports) {
         <table class="content-table">
           <thead>
             <tr>
-              <th style="width: 8%;">STT</th>
-              <th style="width: 62%;">Tên Vật Tư / Hàng Hóa</th>
-              <th style="width: 15%; text-align: center;">ĐVT</th>
-              <th style="width: 15%; text-align: center;">Số lượng</th>
+              <th style="width: 7%;">STT</th>
+              <th style="width: 48%;">Tên Vật Tư / Hàng Hóa</th>
+              <th style="width: 12%; text-align: center;">ĐVT</th>
+              <th style="width: 13%; text-align: center;">Số lượng</th>
+              <th style="width: 20%; text-align: center;">Ghi chú</th>
             </tr>
           </thead>
           <tbody>
@@ -2992,6 +2994,149 @@ if (typeof module !== "undefined" && module.exports) {
             </td>
             <td>
               <strong>NGƯỜI NHẬN HÀNG</strong><br>
+              <em>(Ký, ghi rõ họ tên)</em>
+              <div class="sig-space"></div>
+              <strong>${(tr.receiver && tr.receiver !== '.') ? tr.receiver : ''}</strong>
+            </td>
+            <td>
+              <strong>TRƯỞNG KHOA / TRƯỞNG PHÒNG</strong><br>
+              <em>(Ký, ghi rõ họ tên)</em>
+              <div class="sig-space"></div>
+            </td>
+            <td>
+              <strong>GIÁM ĐỐC</strong><br>
+              <em>(Ký, đóng dấu, ghi rõ họ tên)</em>
+              <div class="sig-space"></div>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 350);
+  }
+
+  
+  // ==========================================
+  // MONTHLY STOCK OUT & IN PRINT HELPERS
+  // ==========================================
+  function printMonthlyStockOutReport(rows, deptName, fromDate, toDate, warehouseName, settings) {
+    const fromStr = fromDate ? formatDate(fromDate) : 'Đầu tháng';
+    const toStr = toDate ? formatDate(toDate) : 'Cuối tháng';
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+
+    let rowsHtml = '';
+    let totalQty = 0;
+    rows.forEach((r, idx) => {
+      totalQty += r.totalQuantity;
+      rowsHtml += `
+        <tr>
+          <td class="text-center">${idx + 1}</td>
+          <td><strong>${r.itemName}</strong><br><small class="text-muted">Mã: ${r.itemCode || ''}</small></td>
+          <td class="text-center">${r.unit || 'Cái'}</td>
+          <td class="text-center font-bold">${formatNumber(r.totalQuantity)}</td>
+          <td>${r.deptName || deptName}</td>
+          <td><small>${r.details || ''}</small></td>
+        </tr>
+      `;
+    });
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="vi">
+      <head>
+        <meta charset="UTF-8">
+        <title>Báo Cáo Tổng Hợp Cấp Phát - ${deptName}</title>
+        <style>
+          @page { size: A4 portrait; margin: 15mm; }
+          body { font-family: 'Times New Roman', serif; font-size: 13pt; line-height: 1.35; color: #000; margin: 0; padding: 0; }
+          .header-table { width: 100%; border: none; margin-bottom: 15px; }
+          .header-table td { border: none; vertical-align: top; padding: 0; }
+          .title-section { text-align: center; margin: 20px 0 15px 0; }
+          .main-title { font-size: 16pt; font-weight: bold; text-transform: uppercase; margin: 0; }
+          .sub-title { font-size: 12pt; font-style: italic; margin-top: 4px; }
+          .info-grid { width: 100%; margin-bottom: 15px; }
+          .info-grid td { border: none; padding: 4px 0; font-size: 12pt; }
+          .content-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          .content-table th, .content-table td { border: 1px solid #000; padding: 7px 8px; font-size: 11.5pt; }
+          .content-table th { background: #f0f0f0; text-align: center; font-weight: bold; }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .font-bold { font-weight: bold; }
+          .signatures { width: 100%; margin-top: 30px; border: none; page-break-inside: avoid; }
+          .signatures td { border: none; text-align: center; vertical-align: top; width: 25%; font-size: 12pt; }
+          .sig-space { height: 85px; }
+          .text-muted { color: #555; }
+        </style>
+      </head>
+      <body>
+        <table class="header-table">
+          <tr>
+            <td style="width: 45%; text-align: center;">
+              <strong>${settings.parentOrg || 'SỞ Y TẾ THÀNH PHỐ HỒ CHÍ MINH'}</strong><br>
+              <strong style="text-decoration: underline;">${settings.orgName || 'TRUNG TÂM PHÁP Y THÀNH PHỐ'}</strong><br>
+              <small style="font-size: 10.5pt;">Kho: ${warehouseName}</small>
+            </td>
+            <td style="width: 55%; text-align: center;">
+              <strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br>
+              <strong>Độc lập - Tự do - Hạnh phúc</strong><br>
+              <span style="font-size: 11pt;">***</span>
+            </td>
+          </tr>
+        </table>
+
+        <div class="title-section">
+          <div class="main-title">BÁO CÁO TỔNG HỢP CẤP PHÁT VẬT TƯ & HÀNG HÓA THEO THÁNG</div>
+          <div class="sub-title">Từ ngày ${fromStr} đến ngày ${toStr}</div>
+        </div>
+
+        <table class="info-grid">
+          <tr>
+            <td><strong>Đơn vị / Khoa phòng nhận:</strong> <span style="text-transform: uppercase; font-weight: bold;">${deptName}</span></td>
+            <td style="text-align: right;"><strong>Ngày lập báo cáo:</strong> ${day}/${month}/${year}</td>
+          </tr>
+        </table>
+
+        <table class="content-table">
+          <thead>
+            <tr>
+              <th style="width: 6%;">STT</th>
+              <th style="width: 36%;">Tên Vật Tư / Hàng Hóa</th>
+              <th style="width: 10%;">ĐVT</th>
+              <th style="width: 14%;">Số Lượng Nhận</th>
+              <th style="width: 16%;">Khoa / Phòng</th>
+              <th style="width: 18%;">Chi Tiết Đợt Nhận / Ghi Chú</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="6" class="text-center" style="padding: 20px;">Không có dữ liệu cấp phát trong khoảng thời gian này</td></tr>'}
+            ${rows.length > 0 ? `
+            <tr style="font-weight: bold; background: #fafafa;">
+              <td colspan="3" class="text-center">TỔNG CỘNG SỐ LƯỢNG:</td>
+              <td class="text-center font-bold" style="font-size: 13pt;">${formatNumber(totalQty)}</td>
+              <td colspan="2"></td>
+            </tr>
+            ` : ''}
+          </tbody>
+        </table>
+
+        <table class="signatures">
+          <tr>
+            <td>
+              <strong>NGƯỜI LẬP BÁO CÁO</strong><br>
+              <em>(Ký, ghi rõ họ tên)</em>
+              <div class="sig-space"></div>
+            </td>
+            <td>
+              <strong>ĐẠI DIỆN KHOA / PHÒNG</strong><br>
               <em>(Ký, ghi rõ họ tên)</em>
               <div class="sig-space"></div>
             </td>
@@ -3017,6 +3162,153 @@ if (typeof module !== "undefined" && module.exports) {
     }, 350);
   }
 
+  function printMonthlyStockInReport(rows, fromDate, toDate, warehouseName, settings) {
+    const fromStr = fromDate ? formatDate(fromDate) : 'Đầu tháng';
+    const toStr = toDate ? formatDate(toDate) : 'Cuối tháng';
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+
+    let rowsHtml = '';
+    let totalQty = 0;
+    let totalAmount = 0;
+    rows.forEach((r, idx) => {
+      totalQty += Number(r.quantity || 0);
+      totalAmount += Number(r.amount || 0);
+      rowsHtml += `
+        <tr>
+          <td class="text-center">${idx + 1}</td>
+          <td class="text-center">${formatDate(r.date)}</td>
+          <td class="text-center font-mono"><strong>${r.invoiceNumber || r.code || '---'}</strong></td>
+          <td>${r.supplier || 'Nguồn nhập'}</td>
+          <td><strong>${r.itemName}</strong><br><small class="text-muted">Mã: ${r.itemCode || ''}</small></td>
+          <td class="text-center font-mono"><small>Lô: ${r.lotNumber || '---'}<br>HSD: ${formatDate(r.expiryDate)}</small></td>
+          <td class="text-center">${r.unit || 'Cái'}</td>
+          <td class="text-center font-bold">${formatNumber(r.quantity)}</td>
+          <td class="text-right">${formatCurrency(r.unitPrice)}</td>
+          <td class="text-right font-bold">${formatCurrency(r.amount)}</td>
+        </tr>
+      `;
+    });
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="vi">
+      <head>
+        <meta charset="UTF-8">
+        <title>Bảng Kê Hàng Hóa Nhập Kho - ${warehouseName}</title>
+        <style>
+          @page { size: A4 landscape; margin: 12mm; }
+          body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.3; color: #000; margin: 0; padding: 0; }
+          .header-table { width: 100%; border: none; margin-bottom: 12px; }
+          .header-table td { border: none; vertical-align: top; padding: 0; }
+          .title-section { text-align: center; margin: 15px 0 12px 0; }
+          .main-title { font-size: 15pt; font-weight: bold; text-transform: uppercase; margin: 0; }
+          .sub-title { font-size: 11.5pt; font-style: italic; margin-top: 3px; }
+          .content-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+          .content-table th, .content-table td { border: 1px solid #000; padding: 6px 7px; font-size: 10.5pt; }
+          .content-table th { background: #f0f0f0; text-align: center; font-weight: bold; }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .font-bold { font-weight: bold; }
+          .font-mono { font-family: monospace; }
+          .signatures { width: 100%; margin-top: 25px; border: none; page-break-inside: avoid; }
+          .signatures td { border: none; text-align: center; vertical-align: top; width: 25%; font-size: 11.5pt; }
+          .sig-space { height: 75px; }
+          .text-muted { color: #555; }
+        </style>
+      </head>
+      <body>
+        <table class="header-table">
+          <tr>
+            <td style="width: 45%; text-align: center;">
+              <strong>${settings.parentOrg || 'SỞ Y TẾ THÀNH PHỐ HỒ CHÍ MINH'}</strong><br>
+              <strong style="text-decoration: underline;">${settings.orgName || 'TRUNG TÂM PHÁP Y THÀNH PHỐ'}</strong><br>
+              <small style="font-size: 10pt;">Kho: ${warehouseName}</small>
+            </td>
+            <td style="width: 55%; text-align: center;">
+              <strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br>
+              <strong>Độc lập - Tự do - Hạnh phúc</strong><br>
+              <span style="font-size: 10.5pt;">***</span>
+            </td>
+          </tr>
+        </table>
+
+        <div class="title-section">
+          <div class="main-title">BÁO CÁO BẢNG KÊ CHI TIẾT HÀNG HÓA NHẬP KHO THEO THÁNG</div>
+          <div class="sub-title">Từ ngày ${fromStr} đến ngày ${toStr}</div>
+        </div>
+
+        <table class="content-table">
+          <thead>
+            <tr>
+              <th style="width: 4%;">STT</th>
+              <th style="width: 9%;">Ngày Nhập</th>
+              <th style="width: 10%;">Số Phiếu/HĐ</th>
+              <th style="width: 15%;">Nhà Cung Cấp</th>
+              <th style="width: 22%;">Tên Mặt Hàng / Vật Tư</th>
+              <th style="width: 11%;">Số Lô / HSD</th>
+              <th style="width: 6%;">ĐVT</th>
+              <th style="width: 7%;">Số Lượng</th>
+              <th style="width: 8%;">Đơn Giá</th>
+              <th style="width: 8%;">Thành Tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="10" class="text-center" style="padding: 20px;">Không có dữ liệu nhập kho trong khoảng thời gian này</td></tr>'}
+            ${rows.length > 0 ? `
+            <tr style="font-weight: bold; background: #fafafa;">
+              <td colspan="7" class="text-right">TỔNG CỘNG GIÁ TRỊ NHẬP KHO TRONG KỲ:</td>
+              <td class="text-center font-bold">${formatNumber(totalQty)}</td>
+              <td></td>
+              <td class="text-right font-bold">${formatCurrency(totalAmount)}</td>
+            </tr>
+            ` : ''}
+          </tbody>
+        </table>
+
+        ${rows.length > 0 ? `
+        <div style="font-size: 11pt; margin-bottom: 15px;">
+          <em>Tổng số tiền (viết bằng chữ): <strong>${numberToVietnameseWords(totalAmount)}</strong></em>
+        </div>
+        ` : ''}
+
+        <table class="signatures">
+          <tr>
+            <td>
+              <strong>NGƯỜI LẬP BÁO CÁO</strong><br>
+              <em>(Ký, ghi rõ họ tên)</em>
+              <div class="sig-space"></div>
+            </td>
+            <td>
+              <strong>THỦ KHO</strong><br>
+              <em>(Ký, ghi rõ họ tên)</em>
+              <div class="sig-space"></div>
+            </td>
+            <td>
+              <strong>KẾ TOÁN TRƯỞNG</strong><br>
+              <em>(Ký, ghi rõ họ tên)</em>
+              <div class="sig-space"></div>
+            </td>
+            <td>
+              <strong>GIÁM ĐỐC</strong><br>
+              <em>(Ký, đóng dấu, ghi rõ họ tên)</em>
+              <div class="sig-space"></div>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 350);
+  }
+  
   function printInventoryReport(reportData, warehouseName, fromDate, toDate, settings) {
     let rowsHtml = '';
     let totalInQty = 0;
@@ -3816,9 +4108,217 @@ if (typeof module !== "undefined" && module.exports) {
   }
 
   // 5. Render Reports
+  
+  // Render Monthly Out Report (Allocation to Departments)
+  function getMonthlyOutReportData() {
+    const deptId = $('#report-out-department') ? $('#report-out-department').value : 'ALL';
+    let fromDate = $('#report-out-from-date') ? $('#report-out-from-date').value : '';
+    let toDate = $('#report-out-to-date') ? $('#report-out-to-date').value : '';
+    const monthVal = $('#report-out-month') ? $('#report-out-month').value : '';
+
+    if (monthVal && (!fromDate || !toDate)) {
+      const [y, m] = monthVal.split('-');
+      const lastDay = new Date(y, m, 0).getDate();
+      fromDate = `${y}-${m}-01`;
+      toDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+    }
+
+    const allOutTrs = db.getTransactions(state.currentWarehouse, 'OUT').filter(t => {
+      if (fromDate && t.date < fromDate) return false;
+      if (toDate && t.date > toDate) return false;
+      if (deptId !== 'ALL' && t.departmentId !== deptId) return false;
+      return true;
+    });
+
+    // Group by itemId and departmentId
+    const map = new Map();
+    allOutTrs.forEach(tr => {
+      const dName = tr.departmentName || 'Chung';
+      (tr.items || []).forEach(item => {
+        const key = `${item.itemId || item.itemName}__${tr.departmentId || ''}`;
+        if (!map.has(key)) {
+          map.set(key, {
+            itemId: item.itemId,
+            itemCode: item.itemCode || '',
+            itemName: item.itemName || '',
+            unit: item.unit || 'Cái',
+            totalQuantity: 0,
+            deptName: dName,
+            entries: []
+          });
+        }
+        const record = map.get(key);
+        record.totalQuantity += Number(item.quantity || 0);
+        record.entries.push({
+          date: tr.date,
+          code: tr.code,
+          qty: item.quantity,
+          receiver: tr.receiver,
+          notes: item.notes
+        });
+      });
+    });
+
+    const rows = Array.from(map.values()).map(r => {
+      const details = r.entries.map(e => `${formatDate(e.date)} (${formatNumber(e.qty)} ${r.unit}${e.receiver ? ' - ' + e.receiver : ''}${e.notes ? ' [' + e.notes + ']' : ''})`).join('; ');
+      return {
+        ...r,
+        details
+      };
+    });
+
+    let selectedDeptName = 'Tất cả các Khoa / Phòng Ban';
+    if (deptId !== 'ALL') {
+      const dObj = DEPARTMENTS.find(d => d.id === deptId);
+      if (dObj) selectedDeptName = dObj.name;
+    }
+
+    return { rows, fromDate, toDate, deptName: selectedDeptName };
+  }
+
+  function renderMonthlyOutReportView() {
+    const { rows } = getMonthlyOutReportData();
+    const tbody = $('#report-monthly-out-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 24px; color: var(--text-muted);">Không có dữ liệu cấp phát cho khoa phòng trong khoảng thời gian đã chọn.</td></tr>';
+      return;
+    }
+
+    let totalQty = 0;
+    rows.forEach((r, idx) => {
+      totalQty += r.totalQuantity;
+      tbody.innerHTML += `
+        <tr>
+          <td class="text-center">${idx + 1}</td>
+          <td><strong>${r.itemName}</strong><br><small class="text-muted">Mã: ${r.itemCode || '---'}</small></td>
+          <td class="text-center">${r.unit || 'Cái'}</td>
+          <td class="text-center font-bold" style="font-size: 14px; color: var(--secondary);">${formatNumber(r.totalQuantity)}</td>
+          <td><strong>${r.deptName}</strong></td>
+          <td><small style="color: var(--text-muted);">${r.details}</small></td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML += `
+      <tr style="background: var(--bg-alt); font-weight: bold; border-top: 2px solid var(--border);">
+        <td colspan="3" class="text-center">TỔNG CỘNG SỐ LƯỢNG:</td>
+        <td class="text-center font-bold" style="color: var(--secondary); font-size: 15px;">${formatNumber(totalQty)}</td>
+        <td colspan="2"></td>
+      </tr>
+    `;
+  }
+
+  // Render Monthly In Report (Receipts Breakdown)
+  function getMonthlyInReportData() {
+    let fromDate = $('#report-in-from-date') ? $('#report-in-from-date').value : '';
+    let toDate = $('#report-in-to-date') ? $('#report-in-to-date').value : '';
+    const monthVal = $('#report-in-month') ? $('#report-in-month').value : '';
+    const supplierKeyword = ($('#report-in-supplier') ? $('#report-in-supplier').value.trim().toLowerCase() : '');
+
+    if (monthVal && (!fromDate || !toDate)) {
+      const [y, m] = monthVal.split('-');
+      const lastDay = new Date(y, m, 0).getDate();
+      fromDate = `${y}-${m}-01`;
+      toDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+    }
+
+    const allInTrs = db.getTransactions(state.currentWarehouse, 'IN').filter(t => {
+      if (fromDate && t.date < fromDate) return false;
+      if (toDate && t.date > toDate) return false;
+      if (supplierKeyword && !(t.supplier || '').toLowerCase().includes(supplierKeyword)) return false;
+      return true;
+    });
+
+    const rows = [];
+    allInTrs.forEach(tr => {
+      (tr.items || []).forEach(item => {
+        rows.push({
+          date: tr.date,
+          code: tr.code,
+          invoiceNumber: tr.invoiceNumber,
+          supplier: tr.supplier || 'Nguồn nhập',
+          itemName: item.itemName,
+          itemCode: item.itemCode,
+          lotNumber: item.lotNumber,
+          expiryDate: item.expiryDate,
+          unit: item.unit,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          amount: item.amount
+        });
+      });
+    });
+
+    // Sort by date descending
+    rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    return { rows, fromDate, toDate };
+  }
+
+  function renderMonthlyInReportView() {
+    const { rows } = getMonthlyInReportData();
+    const tbody = $('#report-monthly-in-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 24px; color: var(--text-muted);">Không có dữ liệu nhập kho trong khoảng thời gian đã chọn.</td></tr>';
+      return;
+    }
+
+    let totalQty = 0;
+    let totalAmount = 0;
+    rows.forEach((r, idx) => {
+      totalQty += Number(r.quantity || 0);
+      totalAmount += Number(r.amount || 0);
+      tbody.innerHTML += `
+        <tr>
+          <td class="text-center">${idx + 1}</td>
+          <td class="text-center">${formatDate(r.date)}</td>
+          <td class="font-mono font-bold text-center">${r.invoiceNumber || r.code || '---'}</td>
+          <td>${r.supplier}</td>
+          <td><strong>${r.itemName}</strong><br><small class="text-muted">Mã: ${r.itemCode || '---'}</small></td>
+          <td class="text-center font-mono"><small>Lô: ${r.lotNumber || '---'}<br>HSD: ${formatDate(r.expiryDate)}</small></td>
+          <td class="text-center">${r.unit || 'Cái'}</td>
+          <td class="text-center font-bold">${formatNumber(r.quantity)}</td>
+          <td class="text-right">${formatCurrency(r.unitPrice)}</td>
+          <td class="text-right font-bold" style="color: var(--primary-dark);">${formatCurrency(r.amount)}</td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML += `
+      <tr style="background: var(--bg-alt); font-weight: bold; border-top: 2px solid var(--border);">
+        <td colspan="7" class="text-right">TỔNG CỘNG NHẬP TRONG KỲ:</td>
+        <td class="text-center font-bold" style="color: var(--primary-dark); font-size: 14px;">${formatNumber(totalQty)}</td>
+        <td></td>
+        <td class="text-right font-bold" style="color: var(--primary-dark); font-size: 15px;">${formatCurrency(totalAmount)}</td>
+      </tr>
+    `;
+  }
+  
   function renderReportsView() {
     const fromDate = $('#report-from-date').value;
     const toDate = $('#report-to-date').value;
+
+    // Populate Department Filter for Monthly Out Report
+    if ($('#report-out-department') && $('#report-out-department').children.length <= 1) {
+      DEPARTMENTS.forEach(dept => {
+        $('#report-out-department').innerHTML += `<option value="${dept.id}">${dept.code} - ${dept.name}</option>`;
+      });
+    }
+
+    // Set default month to current month if empty
+    const currentMonthStr = new Date().toISOString().slice(0, 7);
+    if ($('#report-out-month') && !$('#report-out-month').value) $('#report-out-month').value = currentMonthStr;
+    if ($('#report-in-month') && !$('#report-in-month').value) $('#report-in-month').value = currentMonthStr;
+
+    // Render active sub-tab
+    renderMonthlyOutReportView();
+    renderMonthlyInReportView();
 
     const reportData = db.getInventoryReport(state.currentWarehouse, fromDate, toDate);
     const tbody = $('#report-xnt-tbody');
@@ -4472,6 +4972,9 @@ if (typeof module !== "undefined" && module.exports) {
       <td>
         <input type="number" class="form-control out-qty" min="1" value="1" required>
       </td>
+      <td>
+        <input type="text" class="form-control out-notes" placeholder="Ghi chú...">
+      </td>
       <td class="text-center">
         <button type="button" class="btn btn-outline btn-sm btn-remove-row" style="color: var(--danger); font-size: 16px; font-weight: bold;">&times;</button>
       </td>
@@ -5041,7 +5544,8 @@ if (typeof module !== "undefined" && module.exports) {
           expiryDate,
           quantity,
           unitPrice,
-          amount
+          amount,
+          notes
         });
       });
 
@@ -5115,7 +5619,8 @@ if (typeof module !== "undefined" && module.exports) {
         let lotNumber = '';
         let expiryDate = '';
         let unitPrice = 0;
-        const quantity = Number(row.querySelector('.out-qty').value) || 1;
+        const quantity = Number(row.querySelector('.out-qty')?.value) || 1;
+        const notes = row.querySelector('.out-notes')?.value?.trim() || '';
 
         if (itemId === '__CUSTOM__') {
           itemName = row.querySelector('.out-custom-name')?.value?.trim();
@@ -5214,6 +5719,103 @@ if (typeof module !== "undefined" && module.exports) {
     $('#transactions-type-filter').onchange = () => renderTransactionsView();
 
     // Reports Events
+    // Subtab Navigation inside Reports
+    $$('.report-tab-btn').forEach(btn => {
+      btn.onclick = () => {
+        $$('.report-tab-btn').forEach(b => {
+          b.classList.remove('active', 'btn-primary');
+          b.classList.add('btn-outline');
+        });
+        btn.classList.add('active', 'btn-primary');
+        btn.classList.remove('btn-outline');
+
+        const tab = btn.getAttribute('data-report-tab');
+        $$('.report-tab-content').forEach(c => c.style.display = 'none');
+        if (tab === 'xnt') $('#report-content-xnt').style.display = 'block';
+        else if (tab === 'monthly-out') $('#report-content-monthly-out').style.display = 'block';
+        else if (tab === 'monthly-in') $('#report-content-monthly-in').style.display = 'block';
+      };
+    });
+
+    // Monthly Out Report Handlers
+    if ($('#btn-filter-monthly-out')) $('#btn-filter-monthly-out').onclick = () => renderMonthlyOutReportView();
+    if ($('#report-out-month')) $('#report-out-month').onchange = () => {
+      if ($('#report-out-from-date')) $('#report-out-from-date').value = '';
+      if ($('#report-out-to-date')) $('#report-out-to-date').value = '';
+      renderMonthlyOutReportView();
+    };
+    if ($('#report-out-department')) $('#report-out-department').onchange = () => renderMonthlyOutReportView();
+
+    if ($('#btn-print-monthly-out')) {
+      $('#btn-print-monthly-out').onclick = () => {
+        const { rows, fromDate, toDate, deptName } = getMonthlyOutReportData();
+        const whName = state.currentWarehouse === 'CHEMICAL' ? 'Kho Vật Tư' : (state.currentWarehouse === 'OFFICE' ? 'Kho Văn Phòng Phẩm' : 'Tất cả 2 Kho');
+        printMonthlyStockOutReport(rows, deptName, fromDate, toDate, whName, db.getData().settings);
+      };
+    }
+
+    if ($('#btn-export-monthly-out-excel')) {
+      $('#btn-export-monthly-out-excel').onclick = () => {
+        const { rows, fromDate, toDate, deptName } = getMonthlyOutReportData();
+        const csvRows = [
+          ['BÁO CÁO TỔNG HỢP CẤP PHÁT VẬT TƯ & VPP THEO THÁNG - TRUNG TÂM PHÁP Y THÀNH PHỐ'],
+          [`Khoa / Phòng: ${deptName}`],
+          [`Từ ngày: ${fromDate || 'Đầu tháng'}`, `Đến ngày: ${toDate || 'Cuối tháng'}`],
+          ['STT', 'Tên Vật Tư / Hàng Hóa', 'Mã VT', 'ĐVT', 'Tổng Số Lượng Đã Nhận', 'Khoa / Phòng Nhận', 'Chi Tiết Đợt Nhận']
+        ];
+        rows.forEach((r, idx) => {
+          csvRows.push([idx + 1, r.itemName, r.itemCode, r.unit, r.totalQuantity, r.deptName, r.details]);
+        });
+        exportToCSV(`BaoCao_CapPhat_KhoaPhong_${new Date().toISOString().slice(0, 10)}.csv`, csvRows);
+        showToast('Đã xuất file Excel Báo Cáo Cấp Phát Khoa Phòng thành công!');
+      };
+    }
+
+    // Monthly In Report Handlers
+    if ($('#btn-filter-monthly-in')) $('#btn-filter-monthly-in').onclick = () => renderMonthlyInReportView();
+    if ($('#report-in-month')) $('#report-in-month').onchange = () => {
+      if ($('#report-in-from-date')) $('#report-in-from-date').value = '';
+      if ($('#report-in-to-date')) $('#report-in-to-date').value = '';
+      renderMonthlyInReportView();
+    };
+
+    if ($('#btn-print-monthly-in')) {
+      $('#btn-print-monthly-in').onclick = () => {
+        const { rows, fromDate, toDate } = getMonthlyInReportData();
+        const whName = state.currentWarehouse === 'CHEMICAL' ? 'Kho Vật Tư' : (state.currentWarehouse === 'OFFICE' ? 'Kho Văn Phòng Phẩm' : 'Tất cả 2 Kho');
+        printMonthlyStockInReport(rows, fromDate, toDate, whName, db.getData().settings);
+      };
+    }
+
+    if ($('#btn-export-monthly-in-excel')) {
+      $('#btn-export-monthly-in-excel').onclick = () => {
+        const { rows, fromDate, toDate } = getMonthlyInReportData();
+        const csvRows = [
+          ['BÁO CÁO BẢNG KÊ CHI TIẾT HÀNG HÓA NHẬP KHO THEO THÁNG - TRUNG TÂM PHÁP Y THÀNH PHỐ'],
+          [`Từ ngày: ${fromDate || 'Đầu tháng'}`, `Đến ngày: ${toDate || 'Cuối tháng'}`],
+          ['STT', 'Ngày Nhập', 'Số Phiếu / Số HĐ', 'Nhà Cung Cấp', 'Tên Mặt Hàng / Vật Tư', 'Mã VT', 'Số Lô', 'Hạn Dùng', 'ĐVT', 'Số Lượng', 'Đơn Giá (VNĐ)', 'Thành Tiền (VNĐ)']
+        ];
+        rows.forEach((r, idx) => {
+          csvRows.push([
+            idx + 1,
+            r.date,
+            r.invoiceNumber || r.code || '',
+            r.supplier,
+            r.itemName,
+            r.itemCode,
+            r.lotNumber,
+            r.expiryDate,
+            r.unit,
+            r.quantity,
+            r.unitPrice,
+            r.amount
+          ]);
+        });
+        exportToCSV(`BangKe_NhapKho_ChiTiet_${new Date().toISOString().slice(0, 10)}.csv`, csvRows);
+        showToast('Đã xuất file Excel Bảng Kê Nhập Kho thành công!');
+      };
+    }
+
     $('#btn-filter-report').onclick = () => renderReportsView();
     $('#btn-print-inventory-report').onclick = () => {
       const fromDate = $('#report-from-date').value;
