@@ -2084,7 +2084,7 @@ if (typeof module !== "undefined" && module.exports) {
       const tr = data.transactions[trIndex];
       if (tr.type === 'IN') {
         tr.items.forEach(trItem => {
-          const item = data.items.find(i => i.id === trItem.itemId);
+          const item = data.items.find(i => i.id === trItem.itemId || (trItem.itemCode && i.code === trItem.itemCode) || i.name === trItem.itemName);
           if (item && item.batches) {
             const batch = item.batches.find(b => b.lotNumber === trItem.lotNumber);
             if (batch) {
@@ -2094,7 +2094,7 @@ if (typeof module !== "undefined" && module.exports) {
         });
       } else if (tr.type === 'OUT') {
         tr.items.forEach(trItem => {
-          const item = data.items.find(i => i.id === trItem.itemId);
+          const item = data.items.find(i => i.id === trItem.itemId || (trItem.itemCode && i.code === trItem.itemCode) || i.name === trItem.itemName);
           if (item && item.batches) {
             const batch = item.batches.find(b => b.lotNumber === trItem.lotNumber) || item.batches[0];
             if (batch) {
@@ -2113,6 +2113,7 @@ if (typeof module !== "undefined" && module.exports) {
 
       data.transactions.splice(trIndex, 1);
       this.save();
+      this.triggerCloudAutoSync();
       return true;
     }
 
@@ -4409,9 +4410,15 @@ if (typeof module !== "undefined" && module.exports) {
       btn.onclick = () => {
         const id = btn.getAttribute('data-id');
         if (confirm('Bạn có chắc muốn xóa phiếu này? Số lượng tồn kho tương ứng sẽ được tự động hoàn tác.')) {
-          db.deleteTransaction(id);
-          showToast('Đã xóa phiếu và hoàn tác số lượng kho thành công!');
-          renderTransactionsView();
+          const ok = db.deleteTransaction(id);
+          if (ok) {
+            showToast('Đã xóa phiếu và hoàn tác số lượng kho thành công!', 'success');
+            renderTransactionsView();
+            renderDashboardView();
+            updateGlobalAlertBadge();
+          } else {
+            showToast('Không tìm thấy phiếu cần xóa!', 'warning');
+          }
         }
       };
     });
