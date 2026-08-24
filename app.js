@@ -25,8 +25,8 @@
   const WAREHOUSES = {
     CHEMICAL: {
       id: 'CHEMICAL',
-      name: 'Kho Hóa chất, Sinh phẩm & Vật tư Giám định',
-      shortName: 'Kho Hóa chất - Sinh phẩm',
+      name: 'Kho Vật Tư',
+      shortName: 'Kho Vật Tư',
       icon: 'flask',
       color: '#0d9488',
       categories: [
@@ -659,6 +659,1249 @@
     ]
   };
 
+  
+/**
+ * DANH MỤC 175 MÃ VẬT TƯ & HÀNG HÓA CHUẨN
+ * Trích xuất từ Danh_Muc_Ma_Vat_Tu_Va_Hang_Hoa.xlsx
+ * Trung Tâm Pháp Y Thành Phố Hồ Chí Minh
+ */
+
+const DEFAULT_ITEM_CATALOG = [
+  {
+    "stt": 1,
+    "code": "2-PROPANOL1",
+    "name": "2-Propanol for analysis 2,5L/chai - 10963425000",
+    "warehouse": "CHEMICAL",
+    "unit": "Chai"
+  },
+  {
+    "stt": 2,
+    "code": "CLOMI-D3",
+    "name": "Hóa chất Clomipramine-D3 Hydrochloride-LGCAMP0545.81-02, 1ml/chai",
+    "warehouse": "CHEMICAL",
+    "unit": "Chai"
+  },
+  {
+    "stt": 3,
+    "code": "EOSINY1",
+    "name": "Hóa chất Eosine Y-solution 0,5% (500ml/chai)",
+    "warehouse": "CHEMICAL",
+    "unit": "Chai"
+  },
+  {
+    "stt": 4,
+    "code": "ETHAN20",
+    "name": "Chất chuẩn Ethanol-20 mg/dl (10 lọ/hộp), 1,2ml/lọ",
+    "warehouse": "CHEMICAL",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 5,
+    "code": "ETHAN100",
+    "name": "Chất chuẩn Ethanol 100mg/dL (10 lọ/hộp)",
+    "warehouse": "CHEMICAL",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 6,
+    "code": "HEMATOXY01",
+    "name": "Hematoxylin 500ml/chai (Leica)",
+    "warehouse": "CHEMICAL",
+    "unit": "Chai"
+  },
+  {
+    "stt": 7,
+    "code": "SAPHAT",
+    "name": "Paraffin (Sáp hạt)",
+    "warehouse": "CHEMICAL",
+    "unit": "Kg"
+  },
+  {
+    "stt": 8,
+    "code": "AOPT1",
+    "name": "Áo choàng phẫu thuật",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 9,
+    "code": "BANGKU",
+    "name": "Băng keo lụa 2,5cmx5m",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 10,
+    "code": "BANGURGO",
+    "name": "Băng keo cá nhân Urgo",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 11,
+    "code": "BOBH7",
+    "name": "Bộ bảo hộ 7 món",
+    "warehouse": "OFFICE",
+    "unit": "Bộ"
+  },
+  {
+    "stt": 12,
+    "code": "BOMTCK",
+    "name": "Bơm tiêm 5cc có kim",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 13,
+    "code": "BOMTKK",
+    "name": "Bơm tiêm 5cc không kim",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 14,
+    "code": "CANDAO",
+    "name": "Cán dao mổ số 4 3028",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 15,
+    "code": "DAOMO21",
+    "name": "Lưỡi dao mổ số 21 (100c/hộp)",
+    "warehouse": "OFFICE",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 16,
+    "code": "FACE",
+    "name": "Face shield (Kính chắn giọt bắn)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 17,
+    "code": "GAC5",
+    "name": "Gạc tiệt trùng (Gạc 5x6.5)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 18,
+    "code": "GANGCTT01",
+    "name": "Găng tay y tế Vglove cao su nitrile không bột (50 đôi/hộp)",
+    "warehouse": "OFFICE",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 19,
+    "code": "GANGCTT03",
+    "name": "Găng tay 7,5 hoặc size M có bột, 50đôi/hộp (PK)",
+    "warehouse": "OFFICE",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 20,
+    "code": "GANGCTT05",
+    "name": "Găng tay y tế A1 MERUFA size 7.5, 100 đôi/hộp",
+    "warehouse": "OFFICE",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 21,
+    "code": "GANGPT02",
+    "name": "Găng phẫu thuật tiệt trùng 7.5 (Găng tay giấy)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 22,
+    "code": "GIAYLOC",
+    "name": "Giấy lọc Whatman 2, 110ø",
+    "warehouse": "OFFICE",
+    "unit": "Lọ"
+  },
+  {
+    "stt": 23,
+    "code": "GIAYLOC180",
+    "name": "Giấy lọc định tính 180mm",
+    "warehouse": "OFFICE",
+    "unit": "Lọ"
+  },
+  {
+    "stt": 24,
+    "code": "GIAYYT",
+    "name": "Giấy y tế 40x50 (1xấp-kg)",
+    "warehouse": "OFFICE",
+    "unit": "Xấp"
+  },
+  {
+    "stt": 25,
+    "code": "KEOMAYO",
+    "name": "Kéo Mayo cong 17cm 3056",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 26,
+    "code": "KEOTHANG",
+    "name": "Kéo thẳng tù 20cm",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 27,
+    "code": "KHANVT",
+    "name": "Khăn vuông (Trắng)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 28,
+    "code": "KHAUTGLITE",
+    "name": "Khẩu trang giấy lite",
+    "warehouse": "OFFICE",
+    "unit": "Lít"
+  },
+  {
+    "stt": 29,
+    "code": "KHUONDMTQ",
+    "name": "Khuôn đúc mẫu (250 cái/hộp)",
+    "warehouse": "CHEMICAL",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 30,
+    "code": "KIM18",
+    "name": "Kim nhựa 18G",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 31,
+    "code": "KIMCT",
+    "name": "Kim chọc tủy, gây tê",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 32,
+    "code": "LAMENHAM",
+    "name": "Lame nhám mới (Hộp/72 cái) Citotest",
+    "warehouse": "CHEMICAL",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 33,
+    "code": "LOBP55",
+    "name": "Lọ nhựa PS 55ml có nhãn (Lọ lấy bệnh phẩm)",
+    "warehouse": "CHEMICAL",
+    "unit": "Lọ"
+  },
+  {
+    "stt": 34,
+    "code": "LUOIDCTB",
+    "name": "Lưỡi dao cắt tiêu bản dùng cho máy cắt vi phẫu (Patho Cutter 35)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 35,
+    "code": "NAPPTFE20",
+    "name": "Nắp đóng chai đựng mẫu thủy tinh 20mm lỗ đệm PTFE-SC203201 (100cái/gói)-ND20",
+    "warehouse": "CHEMICAL",
+    "unit": "Chai"
+  },
+  {
+    "stt": 36,
+    "code": "NAPNHOM1,5",
+    "name": "Nắp nhôm cho vial 1,5ml",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 37,
+    "code": "NAPVIAL18",
+    "name": "Nắp Vial 18mm (100 cái/gói)",
+    "warehouse": "CHEMICAL",
+    "unit": "Gói"
+  },
+  {
+    "stt": 38,
+    "code": "NHIP20",
+    "name": "Nhíp có mấu 20cm",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 39,
+    "code": "ONGLT15",
+    "name": "Ống ly tâm 15ml",
+    "warehouse": "CHEMICAL",
+    "unit": "Ống"
+  },
+  {
+    "stt": 40,
+    "code": "ONGLT50",
+    "name": "Ống ly tâm nhựa 50ml, nắp PE, thùng 500 cái, không có pyrogenic, Biologix (Mỹ)",
+    "warehouse": "CHEMICAL",
+    "unit": "Ống"
+  },
+  {
+    "stt": 41,
+    "code": "ONGMAUND",
+    "name": "Ống máu nắp đỏ (HIV) (Setrum)",
+    "warehouse": "CHEMICAL",
+    "unit": "Ống"
+  },
+  {
+    "stt": 42,
+    "code": "ONGMAUNX2",
+    "name": "Ống máu nắp xám (Ống nghiệm Chimily)",
+    "warehouse": "CHEMICAL",
+    "unit": "Ống"
+  },
+  {
+    "stt": 43,
+    "code": "PANH16",
+    "name": "Panh Paraburef 16cm",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 44,
+    "code": "TAMBONG",
+    "name": "Tăm bông Rayor (que đỏ)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 45,
+    "code": "TAPDE",
+    "name": "Tạp dề y tế chưa tiệt trùng 0,8m x 1,2m - VN",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 46,
+    "code": "TESTCOVID",
+    "name": "Test thử kháng nguyên Sars-CoV-2",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 47,
+    "code": "VIAL250",
+    "name": "Ống thủy tinh insert vial 250ul, 29*5.7mm (100 cái/gói)",
+    "warehouse": "CHEMICAL",
+    "unit": "Ống"
+  },
+  {
+    "stt": 48,
+    "code": "ACCO",
+    "name": "Acco sắt",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 49,
+    "code": "BAMK10",
+    "name": "Bấm kim số 10",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 50,
+    "code": "BAMK03",
+    "name": "Bấm kim số 3 (GENMES)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 51,
+    "code": "CHAICHAN",
+    "name": "Bàn chải chà chân",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 52,
+    "code": "CHAISAN",
+    "name": "Bàn chải quét sàn",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 53,
+    "code": "BANGKS3,5",
+    "name": "Băng keo simili 3,5p (xanh)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 54,
+    "code": "BANGKT5",
+    "name": "Băng keo trong/đục 5cm (5 phân)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 55,
+    "code": "BANGTENTT",
+    "name": "Bảng tên TT",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 56,
+    "code": "BAOKBOPD",
+    "name": "Bao kiếng bóp đầu 8x12",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 57,
+    "code": "BAOND",
+    "name": "Bao nilong đen",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 58,
+    "code": "BAOD",
+    "name": "Bao đĩa",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 59,
+    "code": "NILON7",
+    "name": "Bao nilon trắng 7 rem",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 60,
+    "code": "BAORACV90",
+    "name": "Bao rác 90x120cm vàng",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 61,
+    "code": "BAORACX90",
+    "name": "Bao rác 90x120cm xanh",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 62,
+    "code": "BAORAC90",
+    "name": "Bao rác 90x120 (xanh, vàng)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 63,
+    "code": "BAORACDV",
+    "name": "Bao rác đại - 3 cuộn vàng",
+    "warehouse": "CHEMICAL",
+    "unit": "Cuộn"
+  },
+  {
+    "stt": 64,
+    "code": "BAORACDX",
+    "name": "Bao rác đại - 3 cuộn xanh",
+    "warehouse": "CHEMICAL",
+    "unit": "Cuộn"
+  },
+  {
+    "stt": 65,
+    "code": "BAORACTV",
+    "name": "Bao rác trung - 3 cuộn vàng",
+    "warehouse": "CHEMICAL",
+    "unit": "Cuộn"
+  },
+  {
+    "stt": 66,
+    "code": "BAORACTX",
+    "name": "Bao rác trung - 3 cuộn xanh",
+    "warehouse": "CHEMICAL",
+    "unit": "Cuộn"
+  },
+  {
+    "stt": 67,
+    "code": "BAOTHUA4",
+    "name": "Bao thư A4",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 68,
+    "code": "BAOTHUA5",
+    "name": "Bao thư A5",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 69,
+    "code": "BAOTHU12",
+    "name": "Bao thơ nhỏ 12x22",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 70,
+    "code": "BIALALO",
+    "name": "Bìa lá lỗ",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 71,
+    "code": "BIAA3",
+    "name": "Bìa A3",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 72,
+    "code": "BIATA4",
+    "name": "Bìa A4 trắng",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 73,
+    "code": "BIAXA4",
+    "name": "Bìa A4 xanh",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 74,
+    "code": "BIAA4",
+    "name": "Bìa A4 (xanh, hồng, vàng, trắng)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 75,
+    "code": "BIABAOTAP",
+    "name": "Bìa bao tập",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 76,
+    "code": "BIACONG7",
+    "name": "Bìa còng 7 phân",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 77,
+    "code": "BIAC3D",
+    "name": "Bìa cột 3 dây",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 78,
+    "code": "BIAKIENG1",
+    "name": "Bìa kiếng A4",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 79,
+    "code": "BIALAF4",
+    "name": "Bìa lá nhựa F4",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 80,
+    "code": "BIACDN",
+    "name": "Bìa cột dây nhựa",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 81,
+    "code": "BIANUTD4",
+    "name": "Bìa nút F4 đại",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 82,
+    "code": "BIAHXN",
+    "name": "Bìa hộp xéo giấy 25*35",
+    "warehouse": "OFFICE",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 83,
+    "code": "BIAHXL",
+    "name": "Bìa hộp xéo giấy 40*50",
+    "warehouse": "OFFICE",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 84,
+    "code": "BIAHS2F",
+    "name": "Bìa hộp hồ sơ 20F đinh",
+    "warehouse": "OFFICE",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 85,
+    "code": "VIETBIDEN",
+    "name": "Viết bi TL027 - Đen",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 86,
+    "code": "VIETBIXANH",
+    "name": "Viết bi TL027 - Xanh",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 87,
+    "code": "VIETBIX",
+    "name": "Viết bi TL027 - XANH",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 88,
+    "code": "VIETBIDO",
+    "name": "Viết bi TL027 - Đỏ",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 89,
+    "code": "VIETBID",
+    "name": "Viết bi TL027 - ĐỎ",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 90,
+    "code": "VIETCHI",
+    "name": "Viết chì",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 91,
+    "code": "VIETDQ",
+    "name": "Viết dạ quang",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 92,
+    "code": "VIETKY",
+    "name": "Viết ký",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 93,
+    "code": "VIETLD",
+    "name": "Bút lông dầu lớn (PM09)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 94,
+    "code": "VIETLDN",
+    "name": "Bút lông dầu nhỏ (viết đĩa - PM04)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 95,
+    "code": "VIETLB",
+    "name": "Viết lông bảng (đỏ + xanh)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 96,
+    "code": "VIETXOAK",
+    "name": "Viết xóa kéo",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 97,
+    "code": "LAUNHA",
+    "name": "Cây lau nhà Mỹ Phong",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 98,
+    "code": "LAUSANHO",
+    "name": "Cây lau nhà San hô (nguyên cán liền)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 99,
+    "code": "CHACAU",
+    "name": "Chà cầu cán dài",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 100,
+    "code": "CHOICAU",
+    "name": "Chổi cau",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 101,
+    "code": "CHOICO",
+    "name": "Chổi cỏ",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 102,
+    "code": "CUOCSAT",
+    "name": "Cước sắt",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 103,
+    "code": "CUOCX",
+    "name": "Cước xanh",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 104,
+    "code": "CHUOTCHI",
+    "name": "Chuốt chì",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 105,
+    "code": "DAORGL",
+    "name": "Dao rọc giấy lớn",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 106,
+    "code": "DAORGN",
+    "name": "Dao rọc giấy nhỏ",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 107,
+    "code": "DIACD",
+    "name": "Đĩa CD",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 108,
+    "code": "DIADVD",
+    "name": "Đĩa DVD",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 109,
+    "code": "GOKIM",
+    "name": "Gỡ kim / Dụng cụ gỡ kim",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 110,
+    "code": "GIAYA470",
+    "name": "Giấy A4 70 / Giấy A4 (80) Excel",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 111,
+    "code": "GIAYA380",
+    "name": "Giấy photo A3",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 112,
+    "code": "GIAYA5",
+    "name": "Giấy A5 / Giấy in A5",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 113,
+    "code": "GIAYDC",
+    "name": "Giấy decal A4 (6,3m2/xấp)",
+    "warehouse": "OFFICE",
+    "unit": "Xấp"
+  },
+  {
+    "stt": 114,
+    "code": "GIAYGC",
+    "name": "Giấy ghi chú",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 115,
+    "code": "GIAYIA",
+    "name": "Giấy in ảnh / Kjet Kodak",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 116,
+    "code": "GIAYNP",
+    "name": "Giấy niêm phong",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 117,
+    "code": "GIAYNOTE",
+    "name": "Giấy note nhựa màu mũi tên pronotti (1x5cm)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 118,
+    "code": "GOM",
+    "name": "Gôm",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 119,
+    "code": "GIAYVS",
+    "name": "Giấy vệ sinh",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 120,
+    "code": "HOKHO",
+    "name": "Hồ khô",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 121,
+    "code": "MUCBROTHER",
+    "name": "Hộp mực máy in Brother HL-L2361DN",
+    "warehouse": "CHEMICAL",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 122,
+    "code": "MUCCN2900",
+    "name": "Hộp mực máy in Canon 2900",
+    "warehouse": "CHEMICAL",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 123,
+    "code": "MUCHP1102",
+    "name": "Hộp mực máy in HP LaserJet P1102",
+    "warehouse": "CHEMICAL",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 124,
+    "code": "MUCE731",
+    "name": "Mực máy in màu Epson L805 Black (T6731)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 125,
+    "code": "MUCE732",
+    "name": "Mực máy in màu Epson L805 Cyan (T6732)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 126,
+    "code": "MUCE735",
+    "name": "Mực máy in màu Epson L805 Light Cyan (T6735)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 127,
+    "code": "MUCE736",
+    "name": "Mực máy in màu Epson L805 Light Magenta (T6736)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 128,
+    "code": "MUCE733",
+    "name": "Mực máy in màu Epson L805 Magenta (T6733)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 129,
+    "code": "MUCE734",
+    "name": "Mực máy in màu Epson L805 Yellow (T6734)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 130,
+    "code": "KEOCS",
+    "name": "Kéo S100",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 131,
+    "code": "KEP15",
+    "name": "Kẹp bướm 15mm",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 132,
+    "code": "KEP19",
+    "name": "Kẹp 19mm",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 133,
+    "code": "KEP25",
+    "name": "Kẹp bướm 25mm",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 134,
+    "code": "KEP32",
+    "name": "Kẹp bướm 32mm",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 135,
+    "code": "KEP51",
+    "name": "Kẹp bướm 51mm",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 136,
+    "code": "KEPSAT8",
+    "name": "Kẹp sắt 8cm",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 137,
+    "code": "KHANG",
+    "name": "Khăn giấy hộp",
+    "warehouse": "OFFICE",
+    "unit": "Hộp"
+  },
+  {
+    "stt": 138,
+    "code": "KHANLT",
+    "name": "Khăn màu lau tay",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 139,
+    "code": "KIMB10",
+    "name": "Kim bấm số 10",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 140,
+    "code": "KIMB3",
+    "name": "Kim bấm số 3",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 141,
+    "code": "KEPC62",
+    "name": "Kim kẹp C62",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 142,
+    "code": "KEPC82",
+    "name": "Kim kẹp C82",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 143,
+    "code": "KYHR",
+    "name": "Kỵ hốt rác",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 144,
+    "code": "LUOIDL",
+    "name": "Lưỡi dao rọc giấy lớn",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 145,
+    "code": "LUOIDN",
+    "name": "Lưỡi dao rọc giấy nhỏ",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 146,
+    "code": "MUCDD",
+    "name": "Mực dấu - đỏ",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 147,
+    "code": "MUCDX",
+    "name": "Mực dấu - xanh",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 148,
+    "code": "MUCDAUD",
+    "name": "Mực dấu đỏ",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 149,
+    "code": "MUCDAUX",
+    "name": "Mực dấu xanh",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 150,
+    "code": "MUCES641",
+    "name": "Mực in phun Epson màu đen (T6641)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 151,
+    "code": "MUCES643",
+    "name": "Mực in phun Epson màu đỏ sen (T6643)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 152,
+    "code": "MUCES644",
+    "name": "Mực in phun Epson màu vàng (T6644)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 153,
+    "code": "MUCES642",
+    "name": "Mực in phun Epson màu xanh (T6642)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 154,
+    "code": "NUOCLS",
+    "name": "Nước lau sàn",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 155,
+    "code": "NUOCRC",
+    "name": "Nước rửa chén",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 156,
+    "code": "NUOCRT",
+    "name": "Nước rửa tay",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 157,
+    "code": "PIN2A",
+    "name": "Pin 2A (AA)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 158,
+    "code": "PIN3A",
+    "name": "Pin 3A (AAA)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 159,
+    "code": "TAMLSH",
+    "name": "Tấm lau san hô 45cm",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 160,
+    "code": "TAMPP3",
+    "name": "Tampon Shiny lớn SP3",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 161,
+    "code": "TAMP842D",
+    "name": "Tampont nhỏ S842 Đỏ",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 162,
+    "code": "TAMP843D",
+    "name": "Tampont nhỏ S843 Đỏ",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 163,
+    "code": "TAP100",
+    "name": "Tập học sinh (100 trang)",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 164,
+    "code": "TAYVIT",
+    "name": "Tẩy vịt tím",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 165,
+    "code": "THAMCHUI",
+    "name": "Thảm chùi chân",
+    "warehouse": "CHEMICAL",
+    "unit": "Cái"
+  },
+  {
+    "stt": 166,
+    "code": "THUNGR15",
+    "name": "Thùng rác 15L",
+    "warehouse": "CHEMICAL",
+    "unit": "Thùng"
+  },
+  {
+    "stt": 167,
+    "code": "THUNGR25",
+    "name": "Thùng rác 25L",
+    "warehouse": "CHEMICAL",
+    "unit": "Thùng"
+  },
+  {
+    "stt": 168,
+    "code": "THUNGR45",
+    "name": "Thùng rác 45L",
+    "warehouse": "CHEMICAL",
+    "unit": "Thùng"
+  },
+  {
+    "stt": 169,
+    "code": "THUOCDT",
+    "name": "Thước dây tròn",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 170,
+    "code": "THUOC30",
+    "name": "Thước 30cm (Thước kẻ 30cm)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 171,
+    "code": "XABONGB",
+    "name": "Xà bông bột",
+    "warehouse": "OFFICE",
+    "unit": "Bộ"
+  },
+  {
+    "stt": 172,
+    "code": "XITMUOI",
+    "name": "Xịt muỗi",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 173,
+    "code": "XITPHONG",
+    "name": "Xịt phòng Sumo",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 174,
+    "code": "SOCARO30",
+    "name": "Sổ bìa cứng 30x40 (400 trang)",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  },
+  {
+    "stt": 175,
+    "code": "SOCARON",
+    "name": "Sổ bìa cứng ngang 32x23",
+    "warehouse": "OFFICE",
+    "unit": "Cái"
+  }
+];
+
+if (typeof window !== "undefined") {
+  window.DEFAULT_ITEM_CATALOG = DEFAULT_ITEM_CATALOG;
+}
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { DEFAULT_ITEM_CATALOG };
+}
+
+
   class ForensicStorage {
     constructor() {
       this.data = null;
@@ -1174,6 +2417,83 @@
       }
     }
 
+    isCloudActive() {
+      const cloudCfg = this.data.settings?.cloudSync;
+      return !!(cloudCfg && cloudCfg.enabled && cloudCfg.supabaseUrl && cloudCfg.supabaseKey && this.cloudClient);
+    }
+
+    getShareUrl() {
+      const cloudCfg = this.data.settings?.cloudSync || {};
+      if (!cloudCfg.supabaseUrl || !cloudCfg.supabaseKey) return null;
+      const configObj = {
+        url: cloudCfg.supabaseUrl,
+        key: cloudCfg.supabaseKey,
+        auto: true
+      };
+      try {
+        const jsonStr = JSON.stringify(configObj);
+        const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
+        const base = (typeof window !== 'undefined' ? (window.location.origin + window.location.pathname) : '');
+        return `${base}#cloud=${encoded}`;
+      } catch (err) {
+        console.warn('Lỗi mã hóa link chia sẻ:', err);
+        return null;
+      }
+    }
+
+    handleUrlCloudAutoConnect() {
+      if (typeof window === 'undefined') return false;
+      let encodedConfig = null;
+      if (window.location.hash && window.location.hash.includes('cloud=')) {
+        const m = window.location.hash.match(/cloud=([^&]+)/);
+        if (m) encodedConfig = m[1];
+      }
+      if (!encodedConfig && window.location.search && window.location.search.includes('cloud=')) {
+        const sp = new URLSearchParams(window.location.search);
+        encodedConfig = sp.get('cloud');
+      }
+      if (!encodedConfig && window.location.search && window.location.search.includes('supabaseUrl')) {
+        const sp = new URLSearchParams(window.location.search);
+        const url = sp.get('supabaseUrl');
+        const key = sp.get('supabaseKey');
+        if (url && key) {
+          if (!this.data.settings) this.data.settings = {};
+          this.data.settings.cloudSync = {
+            enabled: true,
+            autoSync: true,
+            supabaseUrl: url,
+            supabaseKey: key,
+            lastSyncTime: null
+          };
+          this.save();
+          try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
+          return true;
+        }
+      }
+      if (encodedConfig) {
+        try {
+          const decodedStr = decodeURIComponent(escape(atob(encodedConfig)));
+          const config = JSON.parse(decodedStr);
+          if (config.url && config.key) {
+            if (!this.data.settings) this.data.settings = {};
+            this.data.settings.cloudSync = {
+              enabled: true,
+              autoSync: true,
+              supabaseUrl: config.url,
+              supabaseKey: config.key,
+              lastSyncTime: null
+            };
+            this.save();
+            try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
+            return true;
+          }
+        } catch (err) {
+          console.warn('Không giải mã được cấu hình Cloud từ URL:', err);
+        }
+      }
+      return false;
+    }
+
     setupRealtimeSubscription(onRemoteChange) {
       if (!this.cloudClient) return;
       try {
@@ -1218,6 +2538,101 @@
       this.triggerCloudAutoSync();
       return data.settings;
     }
+
+    // ==========================================
+    // ITEM CATALOG (175+ MÃ VẬT TƯ & HÀNG HÓA)
+    // ==========================================
+    getItemCatalog() {
+      const defaultList = (typeof DEFAULT_ITEM_CATALOG !== 'undefined' ? DEFAULT_ITEM_CATALOG : (typeof window !== 'undefined' && window.DEFAULT_ITEM_CATALOG ? window.DEFAULT_ITEM_CATALOG : []));
+      const customList = this.data.customCatalog || [];
+      
+      const map = new Map();
+      defaultList.forEach(item => {
+        if (item.code) map.set(item.code.toUpperCase(), { ...item, isDefault: true });
+      });
+      customList.forEach(item => {
+        if (item.code) {
+          map.set(item.code.toUpperCase(), { ...item, isCustom: true });
+        }
+      });
+
+      return Array.from(map.values());
+    }
+
+    saveCatalogItem(catalogItem) {
+      if (!catalogItem || !catalogItem.code) return null;
+      const code = catalogItem.code.trim().toUpperCase();
+      const name = (catalogItem.name || '').trim();
+      const warehouse = catalogItem.warehouse || 'CHEMICAL';
+      const unit = catalogItem.unit || 'Cái';
+
+      if (!this.data.customCatalog) this.data.customCatalog = [];
+      
+      const existingIdx = this.data.customCatalog.findIndex(c => c.code && c.code.toUpperCase() === code);
+      const itemObj = {
+        code,
+        name,
+        warehouse,
+        unit,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (existingIdx >= 0) {
+        this.data.customCatalog[existingIdx] = { ...this.data.customCatalog[existingIdx], ...itemObj };
+      } else {
+        this.data.customCatalog.push(itemObj);
+      }
+
+      this.save();
+      this.triggerCloudAutoSync();
+      return itemObj;
+    }
+
+    deleteCatalogItem(code) {
+      if (!code || !this.data.customCatalog) return false;
+      const codeUp = code.trim().toUpperCase();
+      const initialLen = this.data.customCatalog.length;
+      this.data.customCatalog = this.data.customCatalog.filter(c => c.code && c.code.toUpperCase() !== codeUp);
+      if (this.data.customCatalog.length !== initialLen) {
+        this.save();
+        this.triggerCloudAutoSync();
+        return true;
+      }
+      return false;
+    }
+
+    searchCatalog(query, warehouseFilter = null) {
+      const catalog = this.getItemCatalog();
+      if (!query || !query.trim()) {
+        if (warehouseFilter && warehouseFilter !== 'ALL') {
+          return catalog.filter(item => item.warehouse === warehouseFilter);
+        }
+        return catalog;
+      }
+
+      const cleanQuery = removeVietnameseAccents(query);
+      const queryUpper = query.trim().toUpperCase();
+
+      return catalog.filter(item => {
+        if (warehouseFilter && warehouseFilter !== 'ALL' && item.warehouse !== warehouseFilter) {
+          return false;
+        }
+        const codeUpper = (item.code || '').toUpperCase();
+        const nameClean = removeVietnameseAccents(item.name || '');
+        return codeUpper.includes(queryUpper) || nameClean.includes(cleanQuery);
+      });
+    }
+  }
+
+  function removeVietnameseAccents(str) {
+    if (!str) return '';
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase()
+      .trim();
   }
 
   const db = new ForensicStorage();
@@ -1399,7 +2814,7 @@
             <td><strong>Thủ kho tiếp nhận:</strong> ${tr.receiver || settings.storekeeper || 'Lê Văn Quý'}</td>
           </tr>
           <tr>
-            <td colspan="2"><strong>Kho tiếp nhận:</strong> ${tr.warehouseId === 'CHEMICAL' ? 'Kho Hóa chất, Sinh phẩm & Vật tư Giám định' : 'Kho Văn phòng phẩm & Vật tư Hành chính'}</td>
+            <td colspan="2"><strong>Kho tiếp nhận:</strong> ${tr.warehouseId === 'CHEMICAL' ? 'Kho Vật Tư' : 'Kho Văn Phòng Phẩm'}</td>
           </tr>
           <tr>
             <td colspan="2"><strong>Lý do nhập kho:</strong> ${tr.reason || 'Nhập mua sắm phục vụ công tác chuyên môn'}</td>
@@ -1410,7 +2825,7 @@
           <thead>
             <tr>
               <th style="width: 5%;">STT</th>
-              <th style="width: 32%;">Tên Hóa chất / Vật tư / Quy cách</th>
+              <th style="width: 32%;">Tên Vật Tư / Hàng Hóa / Quy cách</th>
               <th style="width: 14%;">Số Lô (Lot)</th>
               <th style="width: 12%;">Hạn dùng</th>
               <th style="width: 7%;">ĐVT</th>
@@ -1528,7 +2943,7 @@
             <td style="width: 45%; text-align: center;">
               <strong>${settings.parentOrg || 'SỞ Y TẾ THÀNH PHỐ HỒ CHÍ MINH'}</strong><br>
               <strong style="text-decoration: underline;">${settings.orgName || 'TRUNG TÂM PHÁP Y THÀNH PHỐ'}</strong><br>
-              <small style="font-size: 10pt;">Kho: ${tr.warehouseId === 'CHEMICAL' ? 'Hóa chất - Sinh phẩm' : 'Văn phòng phẩm'}</small>
+              <small style="font-size: 10pt;">Kho: ${tr.warehouseId === 'CHEMICAL' ? 'Kho Vật Tư' : 'Kho Văn Phòng Phẩm'}</small>
             </td>
             <td style="width: 55%; text-align: center;">
               <strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br>
@@ -1562,7 +2977,7 @@
           <thead>
             <tr>
               <th style="width: 5%;">STT</th>
-              <th style="width: 32%;">Tên Hóa chất / Vật tư / Sinh phẩm</th>
+              <th style="width: 32%;">Tên Vật Tư / Hàng Hóa</th>
               <th style="width: 14%;">Số Lô (Lot)</th>
               <th style="width: 12%;">Hạn sử dụng</th>
               <th style="width: 7%;">ĐVT</th>
@@ -1701,7 +3116,7 @@
             <tr>
               <th rowspan="2" style="width: 4%;">STT</th>
               <th rowspan="2" style="width: 10%;">Mã VT/HC</th>
-              <th rowspan="2" style="width: 28%;">Tên Vật Tư / Hóa Chất / Sinh phẩm</th>
+              <th rowspan="2" style="width: 28%;">Tên Vật Tư / Hàng Hóa</th>
               <th rowspan="2" style="width: 6%;">ĐVT</th>
               <th rowspan="2" style="width: 7%;">Tồn đầu</th>
               <th rowspan="2" style="width: 7%;">Nhập kỳ</th>
@@ -1822,11 +3237,11 @@
         </table>
 
         <div class="title-section">
-          <div class="main-title">THẺ KHO VẬT TƯ / HÓA CHẤT</div>
+          <div class="main-title">THẺ KHO VẬT TƯ & HÀNG HÓA</div>
         </div>
 
         <div class="info-box">
-          - <strong>Tên vật tư, hóa chất:</strong> ${item.name}<br>
+          - <strong>Tên vật tư, hàng hóa:</strong> ${item.name}<br>
           - <strong>Mã số:</strong> ${item.code || '---'} | <strong>Đơn vị tính:</strong> ${item.unit} | <strong>Quy cách:</strong> ${item.packingSpec || 'N/A'}<br>
           - <strong>Vị trí lưu kho:</strong> ${item.location || '---'} | <strong>ĐK Bảo quản:</strong> ${item.storageCondition || '---'}
         </div>
@@ -1966,7 +3381,7 @@
   function switchView(viewName) {
     state.currentView = viewName;
 
-    $$('.sidebar-nav .nav-item').forEach(nav => {
+    $$('.topbar-nav .nav-item, .sidebar-nav .nav-item, .nav-item').forEach(nav => {
       if (nav.getAttribute('data-view') === viewName) nav.classList.add('active');
       else nav.classList.remove('active');
     });
@@ -1991,6 +3406,16 @@
       $('#current-page-title').textContent = titles[viewName];
       const descEl = $('#current-page-desc');
       if (descEl) descEl.textContent = '';
+    }
+
+    // Highlight dropdown toggle if active view is in dropdown
+    const dropdownToggle = $('#btn-dropdown-more');
+    if (dropdownToggle) {
+      if (['transactions', 'reports', 'settings'].includes(viewName)) {
+        dropdownToggle.classList.add('active');
+      } else {
+        dropdownToggle.classList.remove('active');
+      }
     }
 
     renderCurrentView();
@@ -2048,7 +3473,7 @@
       urgentTbody.innerHTML = `
         <tr>
           <td colspan="7" class="text-center" style="padding: 30px; color: var(--success-dark);">
-            ✅ Tất cả hóa chất và vật tư đều còn hạn an toàn và đảm bảo định mức tồn kho!
+            ✅ Tất cả vật tư và hàng hóa đều còn hạn an toàn và đảm bảo định mức tồn kho!
           </td>
         </tr>
       `;
@@ -2068,7 +3493,7 @@
           badgeHtml = `<span class="tag tag-danger">🔴 ĐÃ HẾT HẠN (${daysOverdue} ngày)</span>`;
           itemCode = item.code;
           itemName = item.name;
-          whName = item.warehouseId === 'CHEMICAL' ? 'Hóa chất' : 'VPP';
+          whName = item.warehouseId === 'CHEMICAL' ? 'Vật Tư' : 'VPP';
           lotStr = `<span class="font-mono">${batch.lotNumber}</span>`;
           statusStr = `<strong style="color: var(--danger);">${formatDate(batch.expiryDate)}</strong> (Tồn: ${batch.quantity} ${item.unit})`;
           locationStr = item.location || '---';
@@ -2078,7 +3503,7 @@
           badgeHtml = `<span class="tag tag-warning">🟡 SẮP HẾT HẠN (Còn ${daysLeft} ngày)</span>`;
           itemCode = item.code;
           itemName = item.name;
-          whName = item.warehouseId === 'CHEMICAL' ? 'Hóa chất' : 'VPP';
+          whName = item.warehouseId === 'CHEMICAL' ? 'Vật Tư' : 'VPP';
           lotStr = `<span class="font-mono">${batch.lotNumber}</span>`;
           statusStr = `<strong style="color: var(--warning-dark);">${formatDate(batch.expiryDate)}</strong> (Tồn: ${batch.quantity} ${item.unit})`;
           locationStr = item.location || '---';
@@ -2088,7 +3513,7 @@
           badgeHtml = `<span class="tag tag-warning">⚠️ DƯỚI ĐỊNH MỨC</span>`;
           itemCode = item.code;
           itemName = item.name;
-          whName = item.warehouseId === 'CHEMICAL' ? 'Hóa chất' : 'VPP';
+          whName = item.warehouseId === 'CHEMICAL' ? 'Vật Tư' : 'VPP';
           lotStr = 'Tổng tồn';
           statusStr = `<strong style="color: var(--danger);">${totalQty}</strong> / Min: ${minStock} ${item.unit}`;
           locationStr = item.location || '---';
@@ -2099,7 +3524,7 @@
           <tr>
             <td>${badgeHtml}</td>
             <td><strong>${itemName}</strong><br><small class="font-mono text-muted">${itemCode}</small></td>
-            <td><span class="tag ${whName === 'Hóa chất' ? 'tag-chemical' : 'tag-office'}">${whName}</span></td>
+            <td><span class="tag ${whName === 'Vật Tư' ? 'tag-chemical' : 'tag-office'}">${whName}</span></td>
             <td>${lotStr}</td>
             <td>${statusStr}</td>
             <td>${locationStr}</td>
@@ -2123,7 +3548,7 @@
             <td class="font-mono font-bold">${tr.code}</td>
             <td><span class="tag ${isOut ? 'tag-warning' : 'tag-success'}">${isOut ? 'Xuất Kho (-)' : 'Nhập Kho (+)'}</span></td>
             <td>${formatDate(tr.date)}</td>
-            <td><span class="tag ${tr.warehouseId === 'CHEMICAL' ? 'tag-chemical' : 'tag-office'}">${tr.warehouseId === 'CHEMICAL' ? 'Hóa chất' : 'VPP'}</span></td>
+            <td><span class="tag ${tr.warehouseId === 'CHEMICAL' ? 'tag-chemical' : 'tag-office'}">${tr.warehouseId === 'CHEMICAL' ? 'Vật Tư' : 'VPP'}</span></td>
             <td><strong>${isOut ? tr.departmentName : tr.supplier}</strong></td>
             <td>${tr.caseCode ? `<strong>${tr.caseCode}</strong>: ` : ''}${tr.reason || '---'}</td>
             <td class="text-right font-bold">${formatCurrency(tr.totalAmount)}</td>
@@ -2222,7 +3647,7 @@
           <td>
             <span class="font-mono font-bold">${item.code || '<em class="text-muted" style="font-weight: normal; font-size: 11.5px;">(Chưa có mã)</em>'}</span><br>
             <span class="tag ${isChem ? 'tag-chemical' : 'tag-office'}" style="font-size: 10px; margin-top: 2px;">
-              ${isChem ? 'Hóa chất' : 'VPP'}
+              ${isChem ? 'Vật Tư' : 'VPP'}
             </span>
           </td>
           <td>
@@ -2304,7 +3729,7 @@
             </span>
           </td>
           <td>${formatDate(tr.date)}</td>
-          <td><span class="tag ${isChem ? 'tag-chemical' : 'tag-office'}">${isChem ? 'Hóa chất' : 'VPP'}</span></td>
+          <td><span class="tag ${isChem ? 'tag-chemical' : 'tag-office'}">${isChem ? 'Vật Tư' : 'VPP'}</span></td>
           <td><strong>${isOut ? tr.departmentName : tr.supplier}</strong></td>
           <td>
             ${tr.caseCode ? `<span style="color: var(--secondary); font-weight: 600;">[${tr.caseCode}]</span> ` : ''}
@@ -2392,7 +3817,7 @@
         lowTbody.innerHTML += `
           <tr>
             <td><strong>${ls.item.name}</strong>${ls.item.code ? `<br><small class="font-mono text-muted">${ls.item.code}</small>` : ''}</td>
-            <td><span class="tag ${ls.item.warehouseId === 'CHEMICAL' ? 'tag-chemical' : 'tag-office'}">${ls.item.warehouseId === 'CHEMICAL' ? 'Hóa chất' : 'VPP'}</span></td>
+            <td><span class="tag ${ls.item.warehouseId === 'CHEMICAL' ? 'tag-chemical' : 'tag-office'}">${ls.item.warehouseId === 'CHEMICAL' ? 'Vật Tư' : 'VPP'}</span></td>
             <td class="text-right font-bold" style="color: var(--danger); font-size: 14px;">${ls.totalQty}</td>
             <td class="text-right font-bold">${ls.minStock}</td>
             <td class="text-right font-bold" style="color: var(--warning-dark);">-${ls.diff}</td>
@@ -2552,6 +3977,246 @@
         openStockInModal(btn.getAttribute('data-id'));
       };
     });
+  }
+
+  // ==========================================
+  // SMART AUTOCOMPLETE & CATALOG LOOKUP LOGIC
+  // ==========================================
+  let catalogLookupTarget = 'item'; // 'item' | 'stock-in' | 'manage'
+
+  function setupItemAutocomplete() {
+    const codeInput = $('#item-code');
+    const nameInput = $('#item-name');
+    const codeDropdown = $('#item-code-autocomplete');
+    const nameDropdown = $('#item-name-autocomplete');
+
+    if (!codeInput || !nameInput || !codeDropdown || !nameDropdown) return;
+
+    function renderAutocomplete(inputEl, dropdownEl, query) {
+      const wh = $('#item-warehouse').value;
+      const results = db.searchCatalog(query, wh);
+      dropdownEl.innerHTML = '';
+
+      if (!results || results.length === 0) {
+        dropdownEl.innerHTML = `
+          <div class="autocomplete-empty">
+            Không tìm thấy mã khớp "${query}". Bạn có thể nhập mã mới tự do.
+          </div>
+        `;
+        dropdownEl.classList.add('show');
+        return;
+      }
+
+      results.slice(0, 8).forEach(item => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'autocomplete-item';
+        const isChem = item.warehouse === 'CHEMICAL';
+        itemEl.innerHTML = `
+          <div class="autocomplete-item-left">
+            <span class="autocomplete-item-code">${item.code || '(Chưa có mã)'}</span>
+            <span class="autocomplete-item-name">${item.name}</span>
+          </div>
+          <span class="autocomplete-item-badge ${isChem ? 'chem' : 'office'}">${isChem ? 'Vật Tư' : 'VPP'}</span>
+        `;
+
+        itemEl.onmousedown = (e) => {
+          e.preventDefault();
+          selectCatalogItemForModal(item);
+          dropdownEl.classList.remove('show');
+        };
+
+        dropdownEl.appendChild(itemEl);
+      });
+
+      dropdownEl.classList.add('show');
+    }
+
+    codeInput.addEventListener('input', () => {
+      const val = codeInput.value.trim();
+      if (val.length >= 1) {
+        renderAutocomplete(codeInput, codeDropdown, val);
+      } else {
+        codeDropdown.classList.remove('show');
+      }
+    });
+
+    nameInput.addEventListener('input', () => {
+      const val = nameInput.value.trim();
+      if (val.length >= 1) {
+        renderAutocomplete(nameInput, nameDropdown, val);
+      } else {
+        nameDropdown.classList.remove('show');
+      }
+    });
+
+    codeInput.addEventListener('focus', () => {
+      if (codeInput.value.trim().length >= 1) {
+        renderAutocomplete(codeInput, codeDropdown, codeInput.value.trim());
+      }
+    });
+
+    nameInput.addEventListener('focus', () => {
+      if (nameInput.value.trim().length >= 1) {
+        renderAutocomplete(nameInput, nameDropdown, nameInput.value.trim());
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!codeInput.contains(e.target) && !codeDropdown.contains(e.target)) {
+        codeDropdown.classList.remove('show');
+      }
+      if (!nameInput.contains(e.target) && !nameDropdown.contains(e.target)) {
+        nameDropdown.classList.remove('show');
+      }
+    });
+  }
+
+  function selectCatalogItemForModal(item) {
+    if (!item) return;
+    if ($('#item-code')) $('#item-code').value = item.code || '';
+    if ($('#item-name')) $('#item-name').value = item.name || '';
+    if ($('#item-warehouse')) {
+      $('#item-warehouse').value = item.warehouse || 'CHEMICAL';
+      updateItemModalFields();
+    }
+    if ($('#item-unit')) $('#item-unit').value = item.unit || 'Cái';
+    if ($('#item-packing')) $('#item-packing').value = item.name.includes('chai') ? 'Chai' : (item.name.includes('hộp') ? 'Hộp' : '');
+    showToast(`Đã tự động điền mã chuẩn: ${item.code}`, 'info');
+  }
+
+  function openCatalogLookupModal(target = 'item') {
+    catalogLookupTarget = target;
+    const modal = $('#modal-catalog-lookup');
+    if (!modal) return;
+
+    state.catalogLookupWh = 'ALL';
+    const searchInput = $('#catalog-search-input');
+    if (searchInput) searchInput.value = '';
+
+    updateCatalogLookupFilterUI();
+    renderCatalogLookupTable('', 'ALL');
+    modal.classList.add('open');
+  }
+
+  function updateCatalogLookupFilterUI() {
+    const tabs = [
+      { id: 'catalog-filter-all', code: 'ALL', cls: 'active-all' },
+      { id: 'catalog-filter-chem', code: 'CHEMICAL', cls: 'active-chemical' },
+      { id: 'catalog-filter-off', code: 'OFFICE', cls: 'active-office' }
+    ];
+
+    tabs.forEach(t => {
+      const btn = $(`#${t.id}`);
+      if (btn) {
+        btn.className = `wh-tab-btn ${state.catalogLookupWh === t.code ? t.cls : ''}`;
+      }
+    });
+  }
+
+  function renderCatalogLookupTable(query = '', warehouseFilter = 'ALL') {
+    const tbody = $('#tbody-catalog-lookup');
+    const badge = $('#catalog-lookup-badge');
+    if (!tbody) return;
+
+    const items = db.searchCatalog(query, warehouseFilter);
+    if (badge) badge.textContent = `${items.length} Mặt Hàng`;
+
+    tbody.innerHTML = '';
+    if (items.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" class="text-center" style="padding: 30px; color: var(--text-muted);">
+            Không tìm thấy mã hàng hóa nào khớp với từ khóa "${query}".<br>
+            <button type="button" class="btn btn-secondary btn-sm" style="margin-top: 10px;" id="btn-quick-add-from-empty">➕ Thêm Mã Này Vào Danh Mục Ngay</button>
+          </td>
+        </tr>
+      `;
+      const quickAddBtn = $('#btn-quick-add-from-empty');
+      if (quickAddBtn) {
+        quickAddBtn.onclick = () => openAddCatalogCodeModal(query);
+      }
+      return;
+    }
+
+    items.forEach((item, index) => {
+      const isChem = item.warehouse === 'CHEMICAL';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="text-center" style="color: var(--text-muted);">${item.stt || (index + 1)}</td>
+        <td>
+          <span class="font-mono font-bold" style="color: var(--primary-dark); font-size: 13px;">${item.code || '---'}</span>
+          ${item.isCustom ? '<br><span class="badge badge-warning" style="font-size: 10px; padding: 1px 5px;">Tự thêm</span>' : ''}
+        </td>
+        <td><strong>${item.name}</strong></td>
+        <td class="text-center"><span class="tag ${isChem ? 'tag-chemical' : 'tag-office'}">${isChem ? 'Vật Tư' : 'VPP'}</span></td>
+        <td class="text-center"><strong>${item.unit || 'Cái'}</strong></td>
+        <td class="text-center">
+          <div style="display: flex; gap: 4px; justify-content: center;">
+            <button type="button" class="btn btn-primary btn-sm btn-pick-catalog-item" data-code="${item.code}" style="padding: 4px 10px; font-size: 12px;">Chọn</button>
+            ${item.isCustom ? `<button type="button" class="btn btn-outline btn-sm btn-del-catalog-item" data-code="${item.code}" title="Xóa mã tự thêm" style="color: var(--danger); padding: 4px 6px;">🗑️</button>` : ''}
+          </div>
+        </td>
+      `;
+
+      tr.querySelector('.btn-pick-catalog-item').onclick = () => {
+        if (catalogLookupTarget === 'item') {
+          openItemModal();
+          selectCatalogItemForModal(item);
+        } else if (catalogLookupTarget === 'stock-in') {
+          const inRow = addStockInItemRow();
+          if (inRow) {
+            const select = inRow.querySelector('.in-item-select');
+            const customContainer = inRow.querySelector('.in-custom-container');
+            const customName = inRow.querySelector('.in-custom-name');
+            const customCode = inRow.querySelector('.in-custom-code');
+            const customUnit = inRow.querySelector('.in-custom-unit');
+
+            if (select) {
+              select.value = '__CUSTOM__';
+              if (customContainer) customContainer.style.display = 'block';
+              if (customName) customName.value = item.name;
+              if (customCode) customCode.value = item.code;
+              if (customUnit) customUnit.value = item.unit || 'Cái';
+            }
+          }
+          showToast(`Đã thêm mã "${item.code}" vào phiếu nhập kho!`, 'success');
+        } else {
+          openItemModal();
+          selectCatalogItemForModal(item);
+        }
+        $('#modal-catalog-lookup').classList.remove('open');
+      };
+
+      const delBtn = tr.querySelector('.btn-del-catalog-item');
+      if (delBtn) {
+        delBtn.onclick = () => {
+          if (confirm(`Bạn có chắc chắn muốn xóa mã "${item.code}" khỏi danh mục mở rộng?`)) {
+            db.deleteCatalogItem(item.code);
+            renderCatalogLookupTable($('#catalog-search-input').value, state.catalogLookupWh);
+            showToast(`Đã xóa mã ${item.code}`, 'info');
+          }
+        };
+      }
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function openAddCatalogCodeModal(suggestQuery = '') {
+    const modal = $('#modal-add-catalog-code');
+    const form = $('#form-add-catalog-code');
+    if (!modal || !form) return;
+    form.reset();
+
+    if (suggestQuery) {
+      if (/^[A-Za-z0-9_-]+$/.test(suggestQuery)) {
+        $('#new-cat-code').value = suggestQuery.toUpperCase();
+      } else {
+        $('#new-cat-name').value = suggestQuery;
+      }
+    }
+
+    modal.classList.add('open');
   }
 
   // Modals Management
@@ -3051,10 +4716,83 @@
     if ($('#set-supabase-key')) $('#set-supabase-key').value = cloud.supabaseKey || '';
     if ($('#set-supabase-autosync')) $('#set-supabase-autosync').checked = cloud.autoSync !== false;
     updateCloudStatusUI();
+
+    const catBadge = $('#catalog-count-badge');
+    if (catBadge) {
+      catBadge.textContent = `${db.getItemCatalog().length} Mã Chuẩn`;
+    }
   }
 
   // Setup Event Listeners
   function setupEventListeners() {
+    // Setup Smart Autocomplete
+    setupItemAutocomplete();
+
+    // Catalog Lookup & Management Modals
+    if ($('#btn-lookup-item-code')) $('#btn-lookup-item-code').onclick = () => openCatalogLookupModal('item');
+    if ($('#btn-in-lookup-catalog')) $('#btn-in-lookup-catalog').onclick = () => openCatalogLookupModal('stock-in');
+    if ($('#btn-open-catalog-manager')) $('#btn-open-catalog-manager').onclick = () => openCatalogLookupModal('manage');
+    if ($('#btn-add-new-catalog-code')) $('#btn-add-new-catalog-code').onclick = () => openAddCatalogCodeModal();
+    if ($('#btn-catalog-create-new')) $('#btn-catalog-create-new').onclick = () => openAddCatalogCodeModal();
+
+    if ($('#btn-close-catalog-modal')) $('#btn-close-catalog-modal').onclick = () => $('#modal-catalog-lookup').classList.remove('open');
+    if ($('#btn-close-catalog-lookup-btn')) $('#btn-close-catalog-lookup-btn').onclick = () => $('#modal-catalog-lookup').classList.remove('open');
+
+    if ($('#btn-close-add-catalog-code-modal')) $('#btn-close-add-catalog-code-modal').onclick = () => $('#modal-add-catalog-code').classList.remove('open');
+    if ($('#btn-cancel-add-catalog-code')) $('#btn-cancel-add-catalog-code').onclick = () => $('#modal-add-catalog-code').classList.remove('open');
+
+    // Catalog search filter
+    if ($('#catalog-search-input')) {
+      $('#catalog-search-input').oninput = (e) => {
+        renderCatalogLookupTable(e.target.value, state.catalogLookupWh || 'ALL');
+      };
+    }
+
+    // Catalog warehouse tabs filter
+    const catTabs = [
+      { id: 'catalog-filter-all', code: 'ALL' },
+      { id: 'catalog-filter-chem', code: 'CHEMICAL' },
+      { id: 'catalog-filter-off', code: 'OFFICE' }
+    ];
+    catTabs.forEach(ct => {
+      const el = $(`#${ct.id}`);
+      if (el) {
+        el.onclick = () => {
+          state.catalogLookupWh = ct.code;
+          updateCatalogLookupFilterUI();
+          renderCatalogLookupTable($('#catalog-search-input')?.value || '', ct.code);
+        };
+      }
+    });
+
+    // Form Add New Catalog Code
+    if ($('#form-add-catalog-code')) {
+      $('#form-add-catalog-code').onsubmit = (e) => {
+        e.preventDefault();
+        const code = $('#new-cat-code').value.trim().toUpperCase();
+        const name = $('#new-cat-name').value.trim();
+        const warehouse = $('#new-cat-warehouse').value;
+        const unit = $('#new-cat-unit').value.trim();
+
+        if (!code || !name) {
+          showToast('Vui lòng nhập đầy đủ Mã và Tên mặt hàng!', 'warning');
+          return;
+        }
+
+        db.saveCatalogItem({ code, name, warehouse, unit });
+        $('#modal-add-catalog-code').classList.remove('open');
+        showToast(`Đã thêm mã "${code}" vào danh mục thành công!`, 'success');
+        
+        // Refresh catalog table if open
+        if ($('#modal-catalog-lookup').classList.contains('open')) {
+          renderCatalogLookupTable($('#catalog-search-input')?.value || '', state.catalogLookupWh || 'ALL');
+        }
+        // Refresh settings badge
+        const badge = $('#catalog-count-badge');
+        if (badge) badge.textContent = `${db.getItemCatalog().length} Mã Chuẩn`;
+      };
+    }
+
     // Mobile Sidebar Drawer Controls
     const sidebar = $('#app-sidebar');
     const backdrop = $('#sidebar-backdrop');
@@ -3078,14 +4816,31 @@
     if (backdrop) backdrop.onclick = closeMobileSidebar;
 
     // Navigation (Auto closes mobile sidebar on selection)
-    $$('.sidebar-nav .nav-item').forEach(item => {
+    $$('.topbar-nav .nav-item, .sidebar-nav .nav-item, .nav-item').forEach(item => {
       item.onclick = (e) => {
         e.preventDefault();
         const view = item.getAttribute('data-view');
         switchView(view);
+        const dropdownWrap = $('#nav-dropdown-more');
+        if (dropdownWrap) dropdownWrap.classList.remove('open');
         closeMobileSidebar();
       };
     });
+
+    // Dropdown toggle on click/touch
+    const dropdownWrap = $('#nav-dropdown-more');
+    const dropdownToggle = $('#btn-dropdown-more');
+    if (dropdownToggle && dropdownWrap) {
+      dropdownToggle.onclick = (e) => {
+        e.stopPropagation();
+        dropdownWrap.classList.toggle('open');
+      };
+      document.addEventListener('click', (e) => {
+        if (!dropdownWrap.contains(e.target)) {
+          dropdownWrap.classList.remove('open');
+        }
+      });
+    }
 
     // Warehouse selector
     const tabs = [
@@ -3169,6 +4924,17 @@
       }
 
       db.saveItem(newItem);
+
+      // Tự động lưu vào danh mục mã chuẩn nếu checkbox được bật
+      if ($('#item-save-catalog') && $('#item-save-catalog').checked && newItem.code && newItem.name) {
+        db.saveCatalogItem({
+          code: newItem.code,
+          name: newItem.name,
+          warehouse: newItem.warehouseId,
+          unit: newItem.unit
+        });
+      }
+
       $('#modal-item').classList.remove('open');
       showToast(`Đã ${itemId ? 'cập nhật' : 'thêm'} mặt hàng "${newItem.name}" thành công!`);
       renderInventoryView();
@@ -3438,7 +5204,7 @@
     $('#btn-print-inventory-report').onclick = () => {
       const fromDate = $('#report-from-date').value;
       const toDate = $('#report-to-date').value;
-      const whName = state.currentWarehouse === 'CHEMICAL' ? 'Kho Hóa chất & Sinh phẩm' : (state.currentWarehouse === 'OFFICE' ? 'Kho Văn phòng phẩm' : 'Tất cả 2 Kho');
+      const whName = state.currentWarehouse === 'CHEMICAL' ? 'Kho Vật Tư' : (state.currentWarehouse === 'OFFICE' ? 'Kho Văn Phòng Phẩm' : 'Tất cả 2 Kho');
       const reportData = db.getInventoryReport(state.currentWarehouse, fromDate, toDate);
       printInventoryReport(reportData, whName, fromDate, toDate, db.getData().settings);
     };
@@ -3682,6 +5448,103 @@
       };
     }
 
+    // Mobile Phone Share & QR Modal
+    const sharePhoneBtn = $('#btn-share-phone-qr');
+    if (sharePhoneBtn) {
+      sharePhoneBtn.onclick = () => {
+        const cloudCfg = db.getData().settings?.cloudSync;
+        if (!cloudCfg || !cloudCfg.supabaseUrl || !cloudCfg.supabaseKey) {
+          showToast('Vui lòng điền Supabase Project URL & API Key, bấm "Lưu & Bật Đám Mây" trước khi chia sẻ!', 'warning');
+          return;
+        }
+        const shareUrl = db.getShareUrl();
+        if (!shareUrl) {
+          showToast('Không tạo được link chia sẻ. Vui lòng kiểm tra lại cấu hình Supabase!', 'danger');
+          return;
+        }
+        
+        const inputEl = $('#phone-share-url-input');
+        if (inputEl) inputEl.value = shareUrl;
+
+        const qrImg = $('#phone-qr-img');
+        const qrLoading = $('#phone-qr-loading');
+        if (qrImg) {
+          qrImg.style.display = 'none';
+          if (qrLoading) {
+            qrLoading.style.display = 'block';
+            qrLoading.textContent = 'Đang tạo mã QR...';
+          }
+          qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(shareUrl);
+          qrImg.onload = () => {
+            qrImg.style.display = 'block';
+            if (qrLoading) qrLoading.style.display = 'none';
+          };
+          qrImg.onerror = () => {
+            if (qrLoading) {
+              qrLoading.style.display = 'block';
+              qrLoading.textContent = 'Không tải được ảnh QR. Vui lòng sao chép liên kết bên dưới!';
+            }
+          };
+        }
+
+        const modal = $('#modal-share-phone');
+        if (modal) modal.classList.add('open');
+      };
+    }
+
+    if ($('#btn-close-share-phone-modal')) {
+      $('#btn-close-share-phone-modal').onclick = () => $('#modal-share-phone')?.classList.remove('open');
+    }
+    if ($('#btn-close-share-phone-btn')) {
+      $('#btn-close-share-phone-btn').onclick = () => $('#modal-share-phone')?.classList.remove('open');
+    }
+
+    if ($('#btn-copy-share-url')) {
+      $('#btn-copy-share-url').onclick = async () => {
+        const val = $('#phone-share-url-input')?.value;
+        if (!val) return;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(val);
+          } else {
+            const input = $('#phone-share-url-input');
+            input.focus();
+            input.select();
+            document.execCommand('copy');
+          }
+          showToast('📋 Đã sao chép link đồng bộ! Hãy gửi qua Zalo/Tin nhắn để mở trên điện thoại.', 'success');
+        } catch (e) {
+          showToast('Vui lòng bôi đen và sao chép thủ công liên kết trong ô!', 'info');
+        }
+      };
+    }
+
+    // Auto-sync on Tab Visibility / App Focus (Mobile & Desktop)
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && db.isCloudActive()) {
+          db.pullFromCloud().then(res => {
+            if (res) {
+              renderCurrentView();
+              updateGlobalAlertBadge();
+            }
+          });
+        }
+      });
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', () => {
+        if (db.isCloudActive()) {
+          db.pullFromCloud().then(res => {
+            if (res) {
+              renderCurrentView();
+              updateGlobalAlertBadge();
+            }
+          });
+        }
+      });
+    }
+
     $('#btn-reset-sample-data').onclick = () => {
       if (confirm('Khôi phục toàn bộ cơ sở dữ liệu về bộ dữ liệu mẫu chuẩn của Trung tâm Pháp y? Mọi thay đổi hiện tại sẽ được ghi đè.')) {
         db.resetToDefault();
@@ -3694,6 +5557,8 @@
 
   // Initialize App
   function startApp() {
+    const justConnectedFromUrl = db.handleUrlCloudAutoConnect();
+
     db.init();
     updateCategoryDropdowns();
     updateDepartmentDropdowns();
@@ -3701,6 +5566,9 @@
     setupEventListeners();
     renderCurrentView();
     updateGlobalAlertBadge();
+    if (justConnectedFromUrl) {
+      showToast('🟢 Đã tự động kết nối Đám Mây và đồng bộ dữ liệu với máy tính!', 'success');
+    }
 
     // Auto initialize cloud sync if configured
     const cloudCfg = db.getData().settings?.cloudSync;

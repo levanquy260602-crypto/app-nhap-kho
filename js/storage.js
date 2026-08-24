@@ -20,8 +20,8 @@ export const DEPARTMENTS = [
 export const WAREHOUSES = {
   CHEMICAL: {
     id: 'CHEMICAL',
-    name: 'Kho Hóa chất, Sinh phẩm & Vật tư Giám định',
-    shortName: 'Kho Hóa chất - Sinh phẩm',
+    name: 'Kho Vật Tư',
+    shortName: 'Kho Vật Tư',
     icon: 'flask',
     color: '#0d9488',
     categories: [
@@ -1248,6 +1248,101 @@ class ForensicStorage {
     this.save();
     return data.settings;
   }
+
+  // ==========================================
+  // ITEM CATALOG (175+ MÃ VẬT TƯ & HÀNG HÓA)
+  // ==========================================
+  getItemCatalog() {
+    const defaultList = (typeof DEFAULT_ITEM_CATALOG !== 'undefined' ? DEFAULT_ITEM_CATALOG : (typeof window !== 'undefined' && window.DEFAULT_ITEM_CATALOG ? window.DEFAULT_ITEM_CATALOG : []));
+    const customList = this.data.customCatalog || [];
+    
+    const map = new Map();
+    defaultList.forEach(item => {
+      if (item.code) map.set(item.code.toUpperCase(), { ...item, isDefault: true });
+    });
+    customList.forEach(item => {
+      if (item.code) {
+        map.set(item.code.toUpperCase(), { ...item, isCustom: true });
+      }
+    });
+
+    return Array.from(map.values());
+  }
+
+  saveCatalogItem(catalogItem) {
+    if (!catalogItem || !catalogItem.code) return null;
+    const code = catalogItem.code.trim().toUpperCase();
+    const name = (catalogItem.name || '').trim();
+    const warehouse = catalogItem.warehouse || 'CHEMICAL';
+    const unit = catalogItem.unit || 'Cái';
+
+    if (!this.data.customCatalog) this.data.customCatalog = [];
+    
+    const existingIdx = this.data.customCatalog.findIndex(c => c.code && c.code.toUpperCase() === code);
+    const itemObj = {
+      code,
+      name,
+      warehouse,
+      unit,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (existingIdx >= 0) {
+      this.data.customCatalog[existingIdx] = { ...this.data.customCatalog[existingIdx], ...itemObj };
+    } else {
+      this.data.customCatalog.push(itemObj);
+    }
+
+    this.save();
+    this.triggerCloudAutoSync();
+    return itemObj;
+  }
+
+  deleteCatalogItem(code) {
+    if (!code || !this.data.customCatalog) return false;
+    const codeUp = code.trim().toUpperCase();
+    const initialLen = this.data.customCatalog.length;
+    this.data.customCatalog = this.data.customCatalog.filter(c => c.code && c.code.toUpperCase() !== codeUp);
+    if (this.data.customCatalog.length !== initialLen) {
+      this.save();
+      this.triggerCloudAutoSync();
+      return true;
+    }
+    return false;
+  }
+
+  searchCatalog(query, warehouseFilter = null) {
+    const catalog = this.getItemCatalog();
+    if (!query || !query.trim()) {
+      if (warehouseFilter && warehouseFilter !== 'ALL') {
+        return catalog.filter(item => item.warehouse === warehouseFilter);
+      }
+      return catalog;
+    }
+
+    const cleanQuery = removeVietnameseAccents(query);
+    const queryUpper = query.trim().toUpperCase();
+
+    return catalog.filter(item => {
+      if (warehouseFilter && warehouseFilter !== 'ALL' && item.warehouse !== warehouseFilter) {
+        return false;
+      }
+      const codeUpper = (item.code || '').toUpperCase();
+      const nameClean = removeVietnameseAccents(item.name || '');
+      return codeUpper.includes(queryUpper) || nameClean.includes(cleanQuery);
+    });
+  }
+}
+
+export function removeVietnameseAccents(str) {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
 }
 
 export const db = new ForensicStorage();
