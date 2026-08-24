@@ -5533,6 +5533,7 @@ if (typeof module !== "undefined" && module.exports) {
         const quantity = Number(row.querySelector('.in-qty')?.value) || 1;
         const unitPrice = Number(row.querySelector('.in-price')?.value) || 0;
         const amount = quantity * unitPrice;
+        const notes = row.querySelector('.in-notes')?.value?.trim() || '';
         totalAmount += amount;
 
         items.push({
@@ -5664,7 +5665,8 @@ if (typeof module !== "undefined" && module.exports) {
           expiryDate,
           quantity,
           unitPrice,
-          amount
+          amount,
+          notes
         });
       });
 
