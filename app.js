@@ -1983,6 +1983,7 @@ if (typeof module !== "undefined" && module.exports) {
         data.items.unshift(item);
       }
       this.save();
+      this.triggerCloudAutoSync();
       return item;
     }
 
@@ -2443,6 +2444,9 @@ if (typeof module !== "undefined" && module.exports) {
 
     handleUrlCloudAutoConnect() {
       if (typeof window === 'undefined') return false;
+      // Khởi tạo data nếu chưa có
+      this.getData();
+
       let encodedConfig = null;
       if (window.location.hash && window.location.hash.includes('cloud=')) {
         const m = window.location.hash.match(/cloud=([^&]+)/);
@@ -2466,6 +2470,7 @@ if (typeof module !== "undefined" && module.exports) {
             lastSyncTime: null
           };
           this.save();
+          this.initCloud();
           try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
           return true;
         }
@@ -2484,6 +2489,7 @@ if (typeof module !== "undefined" && module.exports) {
               lastSyncTime: null
             };
             this.save();
+            this.initCloud();
             try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
             return true;
           }
@@ -2636,6 +2642,7 @@ if (typeof module !== "undefined" && module.exports) {
   }
 
   const db = new ForensicStorage();
+  if (typeof window !== 'undefined') window.db = db;
 
   // ==========================================
   // 2. EXPORT & PRINT HELPERS
@@ -5590,19 +5597,16 @@ if (typeof module !== "undefined" && module.exports) {
   }
 
   // Initialize App
-  function startApp() {
+  async function startApp() {
+    db.init();
     const justConnectedFromUrl = db.handleUrlCloudAutoConnect();
 
-    db.init();
     updateCategoryDropdowns();
     updateDepartmentDropdowns();
     loadSettingsView();
     setupEventListeners();
     renderCurrentView();
     updateGlobalAlertBadge();
-    if (justConnectedFromUrl) {
-      showToast('🟢 Đã tự động kết nối Đám Mây và đồng bộ dữ liệu với máy tính!', 'success');
-    }
 
     // Auto initialize cloud sync if configured
     const cloudCfg = db.getData().settings?.cloudSync;
@@ -5615,18 +5619,25 @@ if (typeof module !== "undefined" && module.exports) {
           updateGlobalAlertBadge();
           showToast('☁️ Dữ liệu vừa được cập nhật từ thiết bị khác!', 'info');
         });
-        db.pullFromCloud().then(res => {
+        try {
+          const res = await db.pullFromCloud();
           if (res) {
             updateCloudStatusUI('online');
             renderCurrentView();
             updateGlobalAlertBadge();
+            if (justConnectedFromUrl) {
+              showToast('🟢 Đã kết nối Đám Mây và kéo dữ liệu mới nhất!', 'success');
+            }
           } else {
             updateCloudStatusUI('online');
           }
-        }).catch(() => {
+        } catch (err) {
+          console.warn('Lỗi pull cloud:', err);
           updateCloudStatusUI('error', 'Lỗi kết nối đám mây');
-        });
+        }
       }
+    } else {
+      updateCloudStatusUI('offline');
     }
   }
 
