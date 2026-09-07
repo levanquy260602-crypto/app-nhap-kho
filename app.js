@@ -67,6 +67,10 @@
       managerName: '',
       headOfAdmin: '',
       storekeeper: 'Cử nhân Lê Văn Quý',
+      security: {
+        enabled: true,
+        passwordHash: '123456'
+      },
       lastBackup: null,
       theme: 'light',
       cloudSync: {
@@ -538,6 +542,7 @@
         ]
       }
     ],
+    requisitions: [],
     transactions: [
       {
         id: 'TR-IN-001',
@@ -2041,6 +2046,7 @@ if (typeof module !== "undefined" && module.exports) {
       const data = this.getData();
       transaction.id = `TR-OUT-${Date.now()}`;
       transaction.type = 'OUT';
+      transaction.code = transaction.code || `PX-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
       transaction.createdAt = new Date().toISOString();
 
       transaction.items.forEach(trItem => {
@@ -2076,6 +2082,149 @@ if (typeof module !== "undefined" && module.exports) {
       return transaction;
     }
 
+    
+    getDepartments() {
+      return DEPARTMENTS;
+    }
+
+    // =======================================================================
+    // REQUISITION METHODS (PHIẾU ĐỀ XUẤT LÃNH HÀNG KHOA / PHÒNG)
+    // =======================================================================
+    getRequisitions(warehouseId = null, status = null) {
+      const data = this.getData();
+      data.requisitions = data.requisitions || [];
+      return data.requisitions.filter(req => {
+        const matchWarehouse = !warehouseId || warehouseId === 'ALL' || req.warehouseId === warehouseId;
+        const matchStatus = !status || status === 'ALL' || req.status === status;
+        return matchWarehouse && matchStatus;
+      }).sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+    }
+
+    getRequisitionById(id) {
+      const data = this.getData();
+      data.requisitions = data.requisitions || [];
+      return data.requisitions.find(r => r.id === id);
+    }
+
+    createRequisition(req) {
+      const data = this.getData();
+      data.requisitions = data.requisitions || [];
+      const timestamp = Date.now();
+      const code = req.code || `DX-${new Date().getFullYear()}-${timestamp.toString().slice(-4)}`;
+
+      const newReq = {
+        id: `REQ-${timestamp}`,
+        code,
+        warehouseId: req.warehouseId || 'CHEMICAL',
+        departmentId: req.departmentId || '',
+        departmentName: req.departmentName || '',
+        requester: req.requester || '',
+        date: req.date || new Date().toISOString().slice(0, 10),
+        reason: req.reason || 'Đề xuất lãnh vật tư / VPP thường quy',
+        status: 'PENDING', // PENDING, APPROVED, REJECTED
+        createdAt: new Date().toISOString(),
+        items: req.items || [],
+        approvedAt: null,
+        stockOutCode: null,
+        stockOutId: null,
+        rejectReason: null
+      };
+
+      data.requisitions.unshift(newReq);
+      this.save();
+      this.triggerCloudAutoSync();
+      return newReq;
+    }
+
+    approveRequisition(id, deliverer = 'Cử nhân Lê Văn Quý') {
+      const data = this.getData();
+      data.requisitions = data.requisitions || [];
+      const req = data.requisitions.find(r => r.id === id);
+      if (!req || req.status === 'APPROVED') return null;
+
+      // Create Stock-Out transaction
+      const stockOutItems = [];
+      let totalAmount = 0;
+
+      req.items.forEach(reqItem => {
+        const item = data.items.find(i => i.id === reqItem.itemId || i.code === reqItem.itemCode || i.name === reqItem.itemName);
+        let unitPrice = 0;
+        let lotNumber = 'LÔ-XUẤT';
+        let expiryDate = '---';
+
+        if (item && item.batches && item.batches.length > 0) {
+          const availBatch = item.batches.find(b => b.quantity > 0) || item.batches[0];
+          unitPrice = availBatch.unitPrice || 0;
+          lotNumber = availBatch.lotNumber || 'LÔ-XUẤT';
+          expiryDate = availBatch.expiryDate || '---';
+        }
+
+        const amount = (reqItem.quantity || 1) * unitPrice;
+        totalAmount += amount;
+
+        stockOutItems.push({
+          itemId: reqItem.itemId || (item ? item.id : ''),
+          itemCode: reqItem.itemCode || (item ? item.code : ''),
+          itemName: reqItem.itemName,
+          unit: reqItem.unit || (item ? item.unit : 'Cái'),
+          lotNumber,
+          expiryDate,
+          quantity: reqItem.quantity,
+          unitPrice,
+          amount,
+          notes: reqItem.notes || ''
+        });
+      });
+
+      const tr = this.createStockOutTransaction({
+        warehouseId: req.warehouseId,
+        date: new Date().toISOString().slice(0, 10),
+        departmentId: req.departmentId,
+        departmentName: req.departmentName,
+        receiver: req.requester,
+        deliverer: deliverer,
+        reason: `Cấp phát theo phiếu đề xuất ${req.code}: ${req.reason || ''}`,
+        totalAmount,
+        items: stockOutItems
+      });
+
+      req.status = 'APPROVED';
+      req.approvedAt = new Date().toISOString();
+      req.stockOutCode = tr.code;
+      req.stockOutId = tr.id;
+
+      this.save();
+      this.triggerCloudAutoSync();
+      return { requisition: req, transaction: tr };
+    }
+
+    rejectRequisition(id, reason = 'Không đủ tồn kho hoặc chưa phù hợp') {
+      const data = this.getData();
+      data.requisitions = data.requisitions || [];
+      const req = data.requisitions.find(r => r.id === id);
+      if (!req) return false;
+
+      req.status = 'REJECTED';
+      req.rejectReason = reason;
+      req.rejectedAt = new Date().toISOString();
+
+      this.save();
+      this.triggerCloudAutoSync();
+      return true;
+    }
+
+    deleteRequisition(id) {
+      const data = this.getData();
+      data.requisitions = data.requisitions || [];
+      const index = data.requisitions.findIndex(r => r.id === id);
+      if (index === -1) return false;
+
+      data.requisitions.splice(index, 1);
+      this.save();
+      this.triggerCloudAutoSync();
+      return true;
+    }
+  
     deleteTransaction(id) {
       const data = this.getData();
       const trIndex = data.transactions.findIndex(t => t.id === id);
@@ -3649,6 +3798,7 @@ if (typeof module !== "undefined" && module.exports) {
       badge.style.display = 'inline-block';
       badge.className = alerts.expired.length > 0 ? 'badge badge-danger' : 'badge badge-warning';
     }
+    updateRequisitionsBadge();
   }
 
   function switchView(viewName) {
@@ -3711,6 +3861,9 @@ if (typeof module !== "undefined" && module.exports) {
         break;
       case 'reports':
         renderReportsView();
+        break;
+      case 'requisitions':
+        renderRequisitionsView();
         break;
       case 'settings':
         loadSettingsView();
@@ -4707,6 +4860,64 @@ if (typeof module !== "undefined" && module.exports) {
   }
 
   // Modals Management
+  
+  // Global state for Batch Import Modal
+  let batchImportParsedItems = [];
+
+  function openBatchImportModal() {
+    const modal = $('#modal-batch-import');
+    const form = $('#form-batch-import');
+    form.reset();
+
+    if ($('#batch-code')) $('#batch-code').value = '';
+    const today = new Date().toISOString().split('T')[0];
+    $('#batch-date').value = today;
+    $('#batch-warehouse').value = state.currentWarehouse === 'OFFICE' ? 'OFFICE' : 'CHEMICAL';
+
+    batchImportParsedItems = [];
+    $('#batch-preview-tbody').innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px; color: var(--text-muted);">Chưa có file nào được chọn. Vui lòng chọn file Excel để xem trước dữ liệu.</td></tr>';
+    $('#batch-preview-count').textContent = '0';
+    $('#batch-total-items').textContent = '0';
+    $('#batch-total-qty').textContent = '0';
+    $('#batch-total-amount').textContent = '0 đ';
+    $('#batch-file-info').style.display = 'none';
+    $('#btn-submit-batch-import').disabled = true;
+
+    modal.classList.add('open');
+  }
+
+  function renderBatchImportPreview(items) {
+    batchImportParsedItems = items;
+    const tbody = $('#batch-preview-tbody');
+    tbody.innerHTML = '';
+
+    let totalQty = 0;
+    let totalAmount = 0;
+
+    items.forEach((item, idx) => {
+      totalQty += item.quantity;
+      totalAmount += item.amount;
+
+      tbody.innerHTML += `
+        <tr>
+          <td class="text-center">${idx + 1}</td>
+          <td class="font-mono font-bold" style="color: var(--primary-dark);">${item.code || '<span class="text-muted" style="font-weight: normal; font-size: 11.5px;">(Tự tạo mã)</span>'}</td>
+          <td><strong>${item.name}</strong></td>
+          <td class="text-center">${item.unit}</td>
+          <td class="text-center font-bold" style="font-size: 14px; color: var(--secondary);">${formatNumber(item.quantity)}</td>
+          <td class="text-right">${formatCurrency(item.unitPrice)}</td>
+          <td class="text-right font-bold" style="color: var(--primary-dark);">${formatCurrency(item.amount)}</td>
+        </tr>
+      `;
+    });
+
+    $('#batch-preview-count').textContent = items.length;
+    $('#batch-total-items').textContent = items.length;
+    $('#batch-total-qty').textContent = formatNumber(totalQty);
+    $('#batch-total-amount').textContent = formatCurrency(totalAmount);
+    $('#btn-submit-batch-import').disabled = items.length === 0;
+  }
+  
   function openItemModal(itemId = null) {
     const modal = $('#modal-item');
     const form = $('#form-item');
@@ -4815,6 +5026,306 @@ if (typeof module !== "undefined" && module.exports) {
     modal.classList.add('open');
   }
 
+  
+  // ==========================================
+  // EXCEL IMPORT & TEMPLATE DOWNLOAD HELPERS
+  // ==========================================
+  
+  // Helper to generate or lookup standard item code from name
+  function generateItemCodeFromName(name, warehouse = 'CHEMICAL') {
+    if (!name) return `${warehouse === 'OFFICE' ? 'VPP' : 'VT'}-${Date.now().toString().slice(-4)}`;
+
+    const trimmedName = name.trim();
+
+    // 1. Try finding in DEFAULT_ITEM_CATALOG (175 standard codes)
+    if (typeof DEFAULT_ITEM_CATALOG !== 'undefined' && Array.isArray(DEFAULT_ITEM_CATALOG)) {
+      const match = DEFAULT_ITEM_CATALOG.find(c => 
+        c.name.toLowerCase().trim() === trimmedName.toLowerCase() ||
+        c.name.toLowerCase().includes(trimmedName.toLowerCase()) ||
+        trimmedName.toLowerCase().includes(c.name.toLowerCase())
+      );
+      if (match && match.code) return match.code;
+    }
+
+    // 2. Try finding in current database items
+    if (typeof window !== 'undefined' && window.db) {
+      const dbItem = window.db.getData().items.find(i => 
+        i.name.toLowerCase().trim() === trimmedName.toLowerCase()
+      );
+      if (dbItem && dbItem.code) return dbItem.code;
+    }
+
+    // 3. Generate clean acronym code
+    const clean = trimmedName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9\s]/g, ' ').trim();
+    const words = clean.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return `${warehouse === 'OFFICE' ? 'VPP' : 'VT'}-${Date.now().toString().slice(-4)}`;
+
+    let code = '';
+    if (words.length <= 3) {
+      code = words.join('-').toUpperCase();
+    } else {
+      code = words.slice(0, 3).join('-').toUpperCase();
+    }
+
+    if (code.length > 20) code = code.slice(0, 20);
+    return code;
+  }
+  
+  function downloadStockInExcelTemplate() {
+    try {
+      const headers = [
+        'Mã Hàng Hóa (*)',
+        'Tên Mặt Hàng / Vật Tư (*)',
+        'Đơn Vị Tính (*)',
+        'Số Lượng (*)',
+        'Đơn Giá VNĐ (Tùy chọn)',
+        'Số Lô (Tùy chọn)',
+        'Hạn Dùng YYYY-MM-DD (Tùy chọn)',
+        'Ghi Chú (Tùy chọn)'
+      ];
+
+      const sampleData = [
+        headers,
+        ['ACCO-SDI', 'Acco sắt SDI', 'Hộp', 5, 25000, 'LÔ-VPP', '', 'Văn phòng phẩm'],
+        ['B-KIM-10', 'Bấm kim số 10', 'Cái', 13, 18000, 'LÔ-VPP', '', 'Văn phòng phẩm'],
+        ['BC-QUET-SAN', 'Bàn chải quét sàn', 'Cây', 3, 45000, 'LÔ-VT', '', 'Vật dụng vệ sinh'],
+        ['GT-NIT', 'Găng tay y tế Nitrile không bột', 'Hộp', 50, 85000, 'LOT-2026-01', '2028-12-31', 'Vật tư tiêu hao'],
+        ['CON-90', 'Cồn 90 độ Y Tế (Chai 500ml)', 'Chai', 100, 35000, 'LOT-2026-02', '2029-06-30', 'Hóa chất sát khuẩn'],
+        ['ADN-KIT01', 'Bộ kit định danh ADN Pháp Y', 'Bộ', 10, 12500000, 'LOT-ADN-99', '2027-10-15', 'Phục vụ án hình sự']
+      ];
+
+      if (typeof XLSX !== 'undefined') {
+        const ws = XLSX.utils.aoa_to_sheet(sampleData);
+        ws['!cols'] = [
+          { wch: 20 }, // Mã
+          { wch: 35 }, // Tên
+          { wch: 15 }, // ĐVT
+          { wch: 12 }, // Số Lượng
+          { wch: 20 }, // Đơn Giá
+          { wch: 16 }, // Số Lô
+          { wch: 26 }, // Hạn Dùng
+          { wch: 25 }  // Ghi Chú
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Mau_Nhap_Hang');
+        XLSX.writeFile(wb, 'Mau_Nhap_Kho_Hang_Hoa_Phap_Y.xlsx');
+        showToast('Đã tải về file Excel mẫu chuẩn (kèm cột Mã Hàng Hóa)!', 'success');
+      } else {
+        exportToCSV('Mau_Nhap_Kho_Hang_Hoa_Phap_Y.csv', sampleData);
+        showToast('Đã tải về file CSV mẫu thành công!', 'success');
+      }
+    } catch (err) {
+      console.error('Lỗi tạo file mẫu Excel:', err);
+      showToast('Lỗi khi tải file mẫu: ' + err.message, 'danger');
+    }
+  }
+
+  function parseStockInExcelFile(file, callback) {
+    if (typeof XLSX === 'undefined') {
+      callback(new Error('Thư viện Excel (SheetJS) chưa sẵn sàng. Vui lòng kết nối mạng để tải thư viện!'), null);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+        if (!jsonData || jsonData.length === 0) {
+          callback(new Error('File Excel trống không có dữ liệu!'), null);
+          return;
+        }
+
+        // Find header row (search first 5 rows)
+        let headerRowIndex = -1;
+        for (let r = 0; r < Math.min(6, jsonData.length); r++) {
+          const rowStr = (jsonData[r] || []).join(' ').toLowerCase();
+          const cleanStr = rowStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          if (cleanStr.includes('ten') || cleanStr.includes('name') || cleanStr.includes('mat hang') || cleanStr.includes('hang hoa') || cleanStr.includes('vat tu')) {
+            headerRowIndex = r;
+            break;
+          }
+        }
+        if (headerRowIndex === -1) headerRowIndex = 0;
+
+        const headers = (jsonData[headerRowIndex] || []).map(h => (h ? String(h).trim().toLowerCase() : ''));
+
+        const colMap = {
+          name: -1,
+          unit: -1,
+          qty: -1,
+          code: -1,
+          price: -1,
+          lot: -1,
+          exp: -1,
+          notes: -1
+        };
+
+        headers.forEach((h, idx) => {
+          const clean = h.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+          if (clean.includes('ten') || clean.includes('name') || clean.includes('mathang') || clean.includes('vattu') || clean.includes('sanpham')) {
+            if (colMap.name === -1) colMap.name = idx;
+          } else if (clean.includes('dvt') || clean.includes('donvi') || clean.includes('unit')) {
+            if (colMap.unit === -1) colMap.unit = idx;
+          } else if (clean.includes('soluong') || clean === 'sl' || clean.includes('qty') || clean.includes('quantity')) {
+            if (colMap.qty === -1) colMap.qty = idx;
+          } else if (clean.includes('ma') || clean.includes('code') || clean.includes('sku')) {
+            if (colMap.code === -1) colMap.code = idx;
+          } else if (clean.includes('dongia') || clean.includes('gia') || clean.includes('price') || clean.includes('cost')) {
+            if (colMap.price === -1) colMap.price = idx;
+          } else if (clean.includes('solo') || clean === 'lo' || clean.includes('lot') || clean.includes('batch')) {
+            if (colMap.lot === -1) colMap.lot = idx;
+          } else if (clean.includes('handung') || clean.includes('hansudung') || clean === 'hsd' || clean.includes('exp') || clean.includes('expiry')) {
+            if (colMap.exp === -1) colMap.exp = idx;
+          } else if (clean.includes('ghichu') || clean.includes('note') || clean.includes('mota')) {
+            if (colMap.notes === -1) colMap.notes = idx;
+          }
+        });
+
+        if (colMap.name === -1 && headers.length > 0) colMap.name = 0;
+        if (colMap.unit === -1 && headers.length > 1) colMap.unit = 1;
+        if (colMap.qty === -1 && headers.length > 2) colMap.qty = 2;
+
+        const parsedItems = [];
+        for (let r = headerRowIndex + 1; r < jsonData.length; r++) {
+          const row = jsonData[r];
+          if (!row || row.length === 0) continue;
+
+          const rawName = colMap.name !== -1 ? row[colMap.name] : '';
+          const name = rawName ? String(rawName).trim() : '';
+          if (!name || name.toLowerCase().includes('tên mặt hàng') || name.toLowerCase().includes('tổng cộng')) continue;
+
+          const rawUnit = colMap.unit !== -1 ? row[colMap.unit] : '';
+          const unit = rawUnit ? String(rawUnit).trim() : 'Cái';
+
+          const rawQty = colMap.qty !== -1 ? row[colMap.qty] : 1;
+          const quantity = Math.max(1, parseFloat(String(rawQty).replace(/,/g, '')) || 1);
+
+          const rawCode = colMap.code !== -1 ? row[colMap.code] : '';
+          let code = rawCode ? String(rawCode).trim().toUpperCase() : '';
+          if (!code && name) {
+            code = generateItemCodeFromName(name, 'CHEMICAL');
+          }
+
+          const rawPrice = colMap.price !== -1 ? row[colMap.price] : 0;
+          const unitPrice = Math.max(0, parseFloat(String(rawPrice).replace(/[^0-9.]/g, '')) || 0);
+
+          const rawLot = colMap.lot !== -1 ? row[colMap.lot] : '';
+          const lotNumber = rawLot ? String(rawLot).trim() : 'LÔ-MỚI';
+
+          let expiryDate = '';
+          if (colMap.exp !== -1 && row[colMap.exp]) {
+            const rawExp = row[colMap.exp];
+            if (typeof rawExp === 'number') {
+              const dateObj = new Date(Math.round((rawExp - 25569) * 86400 * 1000));
+              if (!isNaN(dateObj.getTime())) expiryDate = dateObj.toISOString().slice(0, 10);
+            } else {
+              const expStr = String(rawExp).trim();
+              const dmy = expStr.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+              if (dmy) {
+                expiryDate = `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+              } else if (expStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                expiryDate = expStr;
+              }
+            }
+          }
+
+          const rawNotes = colMap.notes !== -1 ? row[colMap.notes] : '';
+          const notes = rawNotes ? String(rawNotes).trim() : '';
+
+          parsedItems.push({
+            name,
+            unit,
+            quantity,
+            code,
+            unitPrice,
+            lotNumber,
+            expiryDate,
+            notes,
+            amount: quantity * unitPrice
+          });
+        }
+
+        if (parsedItems.length === 0) {
+          callback(new Error('Không tìm thấy dòng hàng hóa hợp lệ nào trong file!'), null);
+          return;
+        }
+
+        callback(null, parsedItems);
+      } catch (err) {
+        console.error('Lỗi xử lý file Excel:', err);
+        callback(err, null);
+      }
+    };
+    reader.onerror = () => callback(new Error('Không thể đọc file đã chọn!'), null);
+    reader.readAsArrayBuffer(file);
+  }
+
+  function addStockInItemFromImport(itemData) {
+    const tbody = $('#in-items-tbody');
+    const wh = $('#in-warehouse').value;
+    const items = db.getItems(wh);
+
+    let code = (itemData.code || '').trim().toUpperCase();
+    if (!code && itemData.name) {
+      code = generateItemCodeFromName(itemData.name, wh);
+    }
+
+    // Try to find existing item by code or name
+    const existing = items.find(i => 
+      (code && i.code && i.code.toLowerCase() === code.toLowerCase()) ||
+      (itemData.name && i.name && i.name.toLowerCase().trim() === itemData.name.toLowerCase().trim())
+    );
+
+    const row = addStockInItemRow(existing ? existing.id : '__CUSTOM__');
+
+    const codeInput = row.querySelector('.in-code');
+    if (codeInput) codeInput.value = code || (existing ? existing.code : '');
+
+    if (existing) {
+      const select = row.querySelector('.in-item-select');
+      if (select) select.value = existing.id;
+      const unitInput = row.querySelector('.in-unit');
+      if (unitInput) unitInput.value = itemData.unit || existing.unit || 'Cái';
+    } else {
+      const select = row.querySelector('.in-item-select');
+      if (select) select.value = '__CUSTOM__';
+      const customContainer = row.querySelector('.in-custom-container');
+      if (customContainer) customContainer.style.display = 'block';
+      const customNameInput = row.querySelector('.in-custom-name');
+      if (customNameInput) {
+        customNameInput.value = itemData.name || '';
+        customNameInput.required = true;
+      }
+      const unitInput = row.querySelector('.in-unit');
+      if (unitInput) unitInput.value = itemData.unit || 'Cái';
+    }
+
+    if (itemData.lotNumber) {
+      const lotInput = row.querySelector('.in-lot');
+      if (lotInput) lotInput.value = itemData.lotNumber;
+    }
+    if (itemData.expiryDate) {
+      const expInput = row.querySelector('.in-exp');
+      if (expInput) expInput.value = itemData.expiryDate;
+    }
+    if (itemData.quantity) {
+      const qtyInput = row.querySelector('.in-qty');
+      if (qtyInput) qtyInput.value = itemData.quantity;
+    }
+    if (itemData.unitPrice !== undefined && itemData.unitPrice !== null) {
+      const priceInput = row.querySelector('.in-price');
+      if (priceInput) priceInput.value = itemData.unitPrice;
+    }
+
+    updateInModalTotal();
+  }
+
   function addStockInItemRow(preselectedItemId = null) {
     const tbody = $('#in-items-tbody');
     const wh = $('#in-warehouse').value;
@@ -4823,23 +5334,25 @@ if (typeof module !== "undefined" && module.exports) {
     let optionsHtml = '';
     items.forEach(item => {
       const selected = item.id === preselectedItemId ? 'selected' : '';
-      optionsHtml += `<option value="${item.id}" data-unit="${item.unit}" ${selected}>${item.code} - ${item.name} (${item.unit})</option>`;
+      optionsHtml += `<option value="${item.id}" data-code="${item.code}" data-unit="${item.unit}" ${selected}>${item.code} - ${item.name} (${item.unit})</option>`;
     });
 
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>
+        <input type="text" class="form-control font-mono in-code" placeholder="Mã VT/VPP" style="text-transform: uppercase; font-weight: 600;" required>
+      </td>
+      <td>
         <select class="form-control in-item-select" required>
           <option value="">-- Chọn mặt hàng từ danh mục --</option>
-          <option value="__CUSTOM__" style="color: var(--primary-dark); font-weight: bold; background: #f0fdfa;">➕ [Tự Nhập Mặt Hàng Mới / Khác...]</option>
+          <option value="__CUSTOM__" style="color: var(--primary-dark); font-weight: bold; background: #f0fdfa;">➕ [Tự Nhập Mặt Hàng Mới...]</option>
           <optgroup label="--- Danh Mục Có Sẵn Trong Kho ---">
             ${optionsHtml}
           </optgroup>
         </select>
-        <div class="in-custom-container" style="display: none; margin-top: 8px; background: #f0fdfa; padding: 10px; border-radius: 6px; border: 1px dashed var(--primary);">
-          <div style="font-size: 11.5px; font-weight: 700; color: var(--primary-dark); margin-bottom: 6px;">⭐ Nhập Thông Tin Mặt Hàng Mới (Tự lưu vào Danh mục Kho):</div>
-          <input type="text" class="form-control in-custom-name" placeholder="* Tên mặt hàng mới (VD: Que test ma túy loại mới, Giấy in...)" style="margin-bottom: 6px;">
-          <input type="text" class="form-control font-mono in-custom-code" placeholder="Mã VT/VPP (tự điền hoặc để trống)">
+        <div class="in-custom-container" style="display: none; margin-top: 8px; background: #f0fdfa; padding: 8px 10px; border-radius: 6px; border: 1px dashed var(--primary);">
+          <div style="font-size: 11px; font-weight: 700; color: var(--primary-dark); margin-bottom: 4px;">⭐ Tên Mặt Hàng Mới:</div>
+          <input type="text" class="form-control in-custom-name" placeholder="* Nhập tên mặt hàng mới (VD: Que test ma túy...)">
         </div>
       </td>
       <td>
@@ -4864,6 +5377,7 @@ if (typeof module !== "undefined" && module.exports) {
 
     tbody.appendChild(row);
 
+    const codeInput = row.querySelector('.in-code');
     const select = row.querySelector('.in-item-select');
     const unitInput = row.querySelector('.in-unit');
     const customContainer = row.querySelector('.in-custom-container');
@@ -4879,11 +5393,15 @@ if (typeof module !== "undefined" && module.exports) {
         customContainer.style.display = 'block';
         customNameInput.required = true;
         if (!unitInput.value) unitInput.value = 'Cái';
+        if (!codeInput.value) {
+          codeInput.value = generateItemCodeFromName(customNameInput.value, wh);
+        }
       } else {
         customContainer.style.display = 'none';
         customNameInput.required = false;
         const it = db.getItemById(select.value);
         if (it) {
+          codeInput.value = it.code || '';
           unitInput.value = it.unit || 'Cái';
           if (it.batches && it.batches.length > 0) {
             priceInput.value = it.batches[0].unitPrice || 0;
@@ -4893,9 +5411,21 @@ if (typeof module !== "undefined" && module.exports) {
       updateInModalTotal();
     });
 
-    if (preselectedItemId) {
+    customNameInput.addEventListener('input', () => {
+      if (select.value === '__CUSTOM__' && (!codeInput.value || codeInput.dataset.autogen === 'true')) {
+        codeInput.value = generateItemCodeFromName(customNameInput.value, wh);
+        codeInput.dataset.autogen = 'true';
+      }
+    });
+
+    codeInput.addEventListener('input', () => {
+      codeInput.dataset.autogen = 'false';
+    });
+
+    if (preselectedItemId && preselectedItemId !== '__CUSTOM__') {
       const it = db.getItemById(preselectedItemId);
       if (it) {
+        codeInput.value = it.code || '';
         unitInput.value = it.unit || 'Cái';
         if (it.batches && it.batches.length > 0) {
           priceInput.value = it.batches[0].unitPrice || 0;
@@ -5249,6 +5779,546 @@ if (typeof module !== "undefined" && module.exports) {
   }
 
   // Setup Event Listeners
+  
+  // =========================================================================
+  // REQUISITIONS UI LOGIC & APPROVAL HANDLERS
+  // =========================================================================
+  let currentViewingRequisitionId = null;
+
+  function updateRequisitionsBadge() {
+    const pendingCount = db.getRequisitions(state.currentWarehouse, 'PENDING').length;
+    const badge = $('#nav-requisitions-badge');
+    if (badge) {
+      if (pendingCount > 0) {
+        badge.style.display = 'inline-block';
+        badge.textContent = pendingCount;
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  }
+
+  function renderRequisitionsView() {
+    updateRequisitionsBadge();
+
+    const searchQuery = ($('#req-search')?.value || '').trim().toLowerCase();
+    const statusFilter = $('#req-status-filter')?.value || 'ALL';
+    const deptFilter = $('#req-dept-filter')?.value || 'ALL';
+
+    const allReqs = db.getRequisitions(state.currentWarehouse, 'ALL');
+
+    // Update stats
+    const pendingCount = allReqs.filter(r => r.status === 'PENDING').length;
+    const approvedCount = allReqs.filter(r => r.status === 'APPROVED').length;
+    const rejectedCount = allReqs.filter(r => r.status === 'REJECTED').length;
+
+    if ($('#req-stat-pending')) $('#req-stat-pending').textContent = pendingCount;
+    if ($('#req-stat-approved')) $('#req-stat-approved').textContent = approvedCount;
+    if ($('#req-stat-rejected')) $('#req-stat-rejected').textContent = rejectedCount;
+    if ($('#req-stat-total')) $('#req-stat-total').textContent = allReqs.length;
+
+    let filtered = allReqs.filter(r => {
+      const matchWh = !state.currentWarehouse || state.currentWarehouse === 'ALL' || r.warehouseId === state.currentWarehouse;
+      const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
+      const matchDept = deptFilter === 'ALL' || r.departmentId === deptFilter || r.departmentName === deptFilter;
+      return matchWh && matchStatus && matchDept;
+    });
+
+    if (searchQuery) {
+      filtered = filtered.filter(r => {
+        const code = (r.code || '').toLowerCase();
+        const dept = (r.departmentName || '').toLowerCase();
+        const requester = (r.requester || '').toLowerCase();
+        const reason = (r.reason || '').toLowerCase();
+        return code.includes(searchQuery) || dept.includes(searchQuery) || requester.includes(searchQuery) || reason.includes(searchQuery);
+      });
+    }
+
+    const tbody = $('#requisitions-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 40px; color: var(--text-muted);">Không tìm thấy phiếu đề xuất nào phù hợp.</td></tr>';
+      return;
+    }
+
+    filtered.forEach((req, idx) => {
+      const isChem = req.warehouseId === 'CHEMICAL';
+      let statusBadge = '';
+      if (req.status === 'PENDING') {
+        statusBadge = '<span class="tag tag-pending">🟡 Chờ Phê Duyệt</span>';
+      } else if (req.status === 'APPROVED') {
+        statusBadge = '<span class="tag tag-approved">🟢 Đã Xuất Kho</span>';
+      } else {
+        statusBadge = '<span class="tag tag-rejected">🔴 Từ Chối</span>';
+      }
+
+      const totalItemsCount = req.items.length;
+      const totalQty = req.items.reduce((sum, it) => sum + Number(it.quantity || 0), 0);
+
+      tbody.innerHTML += `
+        <tr>
+          <td>
+            <strong class="font-mono" style="color: var(--primary-dark);">${req.code}</strong>
+          </td>
+          <td>${formatDate(req.date)}</td>
+          <td><span class="tag ${isChem ? 'tag-chemical' : 'tag-office'}">${isChem ? 'Vật Tư' : 'VPP'}</span></td>
+          <td><strong>${req.departmentName}</strong></td>
+          <td>${req.requester}</td>
+          <td class="text-center">
+            <span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 700;">${totalItemsCount} món (${totalQty})</span>
+          </td>
+          <td class="text-center">${statusBadge}</td>
+          <td class="text-center">
+            <div style="display: flex; gap: 6px; justify-content: center;">
+              <button type="button" class="btn btn-outline btn-sm btn-view-req" onclick="openDetailRequisitionModal('${req.id}')" data-id="${req.id}" title="Xem Chi Tiết & Phê Duyệt" style="font-weight: 600;">
+                ${req.status === 'PENDING' ? '⚡ Duyệt' : '👁️ Xem'}
+              </button>
+              <button type="button" class="btn btn-outline btn-sm btn-print-req" onclick="printRequisitionById('${req.id}')" data-id="${req.id}" title="In Phiếu Đề Xuất A4">
+                🖨️ In
+              </button>
+              <button type="button" class="btn btn-outline btn-sm btn-del-req" onclick="deleteRequisitionById('${req.id}')" data-id="${req.id}" title="Xóa Phiếu Đề Xuất" style="color: var(--danger);">
+                🗑️
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    });
+
+    // Bind action buttons with querySelectorAll
+    $$('.btn-view-req').forEach(btn => {
+      btn.onclick = () => openDetailRequisitionModal(btn.getAttribute('data-id'));
+    });
+
+    $$('.btn-print-req').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.getAttribute('data-id');
+        printRequisitionById(id);
+      };
+    });
+
+    $$('.btn-del-req').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.getAttribute('data-id');
+        deleteRequisitionById(id);
+      };
+    });
+  }
+
+  function printRequisitionById(id) {
+    const req = db.getRequisitionById(id);
+    if (req) {
+      printRequisitionReceipt(req, db.getData().settings);
+    } else {
+      showToast('Không tìm thấy phiếu đề xuất!', 'warning');
+    }
+  }
+  window.printRequisitionById = printRequisitionById;
+
+  function deleteRequisitionById(id) {
+    const req = db.getRequisitionById(id);
+    const code = req ? req.code : id;
+    if (confirm(`Bạn có chắc muốn xóa phiếu đề xuất ${code} khỏi danh sách?`)) {
+      db.deleteRequisition(id);
+      showToast('Đã xóa phiếu đề xuất thành công!');
+      renderRequisitionsView();
+    }
+  }
+  window.deleteRequisitionById = deleteRequisitionById;
+
+  function closeCreateRequisitionModal() {
+    const modal = $('#modal-create-requisition');
+    if (modal) {
+      modal.classList.remove('open');
+      modal.style.display = 'none';
+      modal.style.opacity = '0';
+      modal.style.visibility = 'hidden';
+    }
+  }
+
+  function openCreateRequisitionModal() {
+    const modal = $('#modal-create-requisition');
+    if (!modal) {
+      console.warn('modal-create-requisition not found');
+      return;
+    }
+
+    const form = $('#form-create-requisition');
+    if (form && typeof form.reset === 'function') {
+      form.reset();
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    if ($('#req-in-date')) $('#req-in-date').value = today;
+
+    // Check which warehouse has items in stock
+    const whSelect = $('#req-in-warehouse');
+    if (whSelect) {
+      const chemItems = db.getItems('CHEMICAL').filter(it => (it.batches || []).reduce((s, b) => s + Number(b.quantity || 0), 0) > 0);
+      const officeItems = db.getItems('OFFICE').filter(it => (it.batches || []).reduce((s, b) => s + Number(b.quantity || 0), 0) > 0);
+      const totalAvail = chemItems.length + officeItems.length;
+
+      whSelect.innerHTML = `
+        <option value="ALL" selected>📦 Tất Cả Các Kho (${totalAvail} mặt hàng còn tồn)</option>
+        <option value="OFFICE">📁 Kho Văn Phòng Phẩm (${officeItems.length} mặt hàng còn tồn)</option>
+        <option value="CHEMICAL">🧪 Kho Vật Tư & Hóa Chất (${chemItems.length} mặt hàng còn tồn)</option>
+      `;
+
+      if (typeof state !== 'undefined' && state.currentWarehouse && state.currentWarehouse !== 'ALL') {
+        whSelect.value = state.currentWarehouse;
+      } else {
+        whSelect.value = 'ALL';
+      }
+    }
+
+    // Populate Department dropdown
+    const deptSelect = $('#req-in-department');
+    if (deptSelect) {
+      deptSelect.innerHTML = '<option value="">-- Chọn Khoa / Phòng đề xuất --</option>';
+      const depts = (typeof db !== 'undefined' && db.getDepartments) ? db.getDepartments() : DEPARTMENTS;
+      depts.forEach(d => {
+        deptSelect.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+      });
+    }
+
+    const tbody = $('#req-create-items-tbody');
+    if (tbody) {
+      tbody.innerHTML = '';
+      addRequisitionItemRow();
+    }
+
+    modal.classList.add('open');
+    modal.style.display = 'flex';
+    modal.style.zIndex = '10000000';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    modal.style.pointerEvents = 'auto';
+  }
+  window.openCreateRequisitionModal = openCreateRequisitionModal;
+  window.closeCreateRequisitionModal = closeCreateRequisitionModal;
+
+  function addRequisitionItemRow() {
+    const tbody = $('#req-create-items-tbody');
+    const whVal = $('#req-in-warehouse')?.value || 'ALL';
+    const items = db.getItems(whVal === 'ALL' ? null : whVal);
+
+    // Only show items with available stock > 0
+    let optionsHtml = '<option value="">-- Chọn mặt hàng còn tồn kho --</option>';
+    let availableCount = 0;
+
+    items.forEach(it => {
+      const totalQty = (it.batches || []).reduce((sum, b) => sum + Number(b.quantity || 0), 0);
+      if (totalQty > 0) {
+        availableCount++;
+        const whTag = it.warehouseId === 'CHEMICAL' ? '[Vật Tư]' : '[VPP]';
+        optionsHtml += `<option value="${it.id}" data-unit="${it.unit}" data-stock="${totalQty}" data-code="${it.code}" data-wh="${it.warehouseId}">${whTag} ${it.code} - ${it.name} (Còn tồn: ${totalQty} ${it.unit})</option>`;
+      }
+    });
+
+    if (availableCount === 0) {
+      optionsHtml = '<option value="">⚠️ Hiện tại kho được chọn không có mặt hàng nào còn tồn</option>';
+    }
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td style="vertical-align: middle;">
+        <select class="form-control req-item-select font-bold" required style="width: 100%; font-size: 13px;">
+          ${optionsHtml}
+        </select>
+      </td>
+      <td class="text-center font-bold req-item-unit" style="vertical-align: middle; color: var(--text-main); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Đơn vị tính">---</td>
+      <td class="text-center font-bold req-item-stock" style="vertical-align: middle;">---</td>
+      <td style="vertical-align: middle;">
+        <input type="number" class="form-control req-item-qty font-bold" min="1" max="999999" value="1" required style="text-align: center; color: var(--secondary); font-size: 14px; width: 100%;">
+      </td>
+      <td style="vertical-align: middle;">
+        <input type="text" class="form-control req-item-notes" placeholder="Ghi chú thêm..." style="width: 100%; font-size: 12.5px;">
+      </td>
+      <td class="text-center" style="vertical-align: middle;">
+        <button type="button" class="btn btn-outline btn-sm btn-remove-req-row" title="Xóa dòng" style="color: var(--danger); font-size: 16px; font-weight: bold; padding: 4px 8px; border-radius: 4px;">&times;</button>
+      </td>
+    `;
+
+    tbody.appendChild(row);
+
+    const select = row.querySelector('.req-item-select');
+    const unitTd = row.querySelector('.req-item-unit');
+    const stockTd = row.querySelector('.req-item-stock');
+    const qtyInput = row.querySelector('.req-item-qty');
+
+    const updateRowTotals = () => {
+      let count = 0;
+      let totalQty = 0;
+      $$('#req-create-items-tbody tr').forEach(r => {
+        if (r.querySelector('.req-item-select').value) {
+          count++;
+          totalQty += Number(r.querySelector('.req-item-qty').value || 0);
+        }
+      });
+      $('#req-create-items-count').textContent = count;
+      $('#req-create-total-qty').textContent = formatNumber(totalQty);
+    };
+
+    select.onchange = () => {
+      const opt = select.selectedOptions[0];
+      if (opt && opt.value) {
+        const rawUnit = opt.getAttribute('data-unit') || 'Cái';
+        const cleanUnit = (rawUnit.length > 8) ? (rawUnit.slice(0, 6) + '..') : rawUnit;
+        const stock = Number(opt.getAttribute('data-stock') || 0);
+        unitTd.textContent = cleanUnit;
+        unitTd.title = rawUnit;
+        stockTd.innerHTML = `<span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 700; font-size: 12.5px; white-space: nowrap; padding: 4px 8px; border-radius: 6px;">${stock} ${cleanUnit}</span>`;
+        stockTd.title = `Tồn kho khả dụng: ${stock} ${rawUnit}`;
+        qtyInput.max = stock;
+        if (Number(qtyInput.value) > stock) qtyInput.value = stock;
+      } else {
+        unitTd.textContent = '---';
+        unitTd.title = '';
+        stockTd.innerHTML = '---';
+        stockTd.title = '';
+        qtyInput.removeAttribute('max');
+      }
+      updateRowTotals();
+    };
+
+    qtyInput.oninput = () => {
+      const opt = select.selectedOptions[0];
+      if (opt && opt.value) {
+        const stock = Number(opt.getAttribute('data-stock') || 0);
+        if (Number(qtyInput.value) > stock) {
+          showToast(`Số lượng xin không được vượt quá tồn kho (${stock})!`, 'warning');
+          qtyInput.value = stock;
+        }
+      }
+      updateRowTotals();
+    };
+
+    row.querySelector('.btn-remove-req-row').onclick = () => {
+      if (tbody.children.length > 1) {
+        row.remove();
+        updateRowTotals();
+      } else {
+        showToast('Phiếu đề xuất cần có ít nhất 1 mặt hàng!', 'warning');
+      }
+    };
+
+    updateRowTotals();
+    return row;
+  }
+
+  function closeDetailRequisitionModal() {
+    const m = $('#modal-detail-requisition');
+    if (m) {
+      m.classList.remove('open');
+      m.style.display = 'none';
+      m.style.opacity = '0';
+      m.style.visibility = 'hidden';
+    }
+  }
+  window.closeDetailRequisitionModal = closeDetailRequisitionModal;
+
+  function openDetailRequisitionModal(id) {
+    const req = db.getRequisitionById(id);
+    if (!req) return;
+
+    currentViewingRequisitionId = id;
+    const modal = $('#modal-detail-requisition');
+    if (!modal) return;
+
+    $('#req-detail-title').textContent = `Phiếu Đề Xuất: ${req.code}`;
+    $('#req-detail-subtitle').textContent = `Kho: ${req.warehouseId === 'CHEMICAL' ? 'Kho Vật Tư' : (req.warehouseId === 'OFFICE' ? 'Kho Văn Phòng Phẩm' : 'Tất Cả Các Kho')} | Ngày gửi: ${formatDate(req.date)}`;
+    $('#req-detail-dept').textContent = req.departmentName;
+    $('#req-detail-requester').textContent = req.requester;
+    $('#req-detail-date').textContent = formatDate(req.date);
+    $('#req-detail-warehouse').textContent = req.warehouseId === 'CHEMICAL' ? 'Kho Vật Tư' : (req.warehouseId === 'OFFICE' ? 'Kho Văn Phòng Phẩm' : 'Tất Cả Các Kho');
+    $('#req-detail-reason').textContent = req.reason || '---';
+
+    let statusBadge = '';
+    if (req.status === 'PENDING') {
+      statusBadge = '<span class="tag tag-pending">🟡 Chờ Phê Duyệt</span>';
+      $('#req-detail-approved-info').style.display = 'none';
+      $('#req-detail-action-buttons').style.display = 'flex';
+    } else if (req.status === 'APPROVED') {
+      statusBadge = '<span class="tag tag-approved">🟢 Đã Xuất Kho</span>';
+      $('#req-detail-approved-info').style.display = 'block';
+      $('#req-detail-approved-info').textContent = `✅ Đã xuất kho thành công (${req.stockOutCode || ''}) vào lúc ${formatDate(req.approvedAt)}`;
+      $('#req-detail-action-buttons').style.display = 'none';
+    } else {
+      statusBadge = '<span class="tag tag-rejected">🔴 Từ Chối</span>';
+      $('#req-detail-approved-info').style.display = 'block';
+      $('#req-detail-approved-info').textContent = `❌ Lý do từ chối: ${req.rejectReason || '---'}`;
+      $('#req-detail-action-buttons').style.display = 'none';
+    }
+    $('#req-detail-status-badge').innerHTML = statusBadge;
+
+    const tbody = $('#req-detail-items-tbody');
+    tbody.innerHTML = '';
+
+    req.items.forEach((it, idx) => {
+      const dbItem = db.getItemById(it.itemId) || db.getItems(null).find(i => i.id === it.itemId || i.code === it.itemCode || i.name === it.itemName);
+      const currentStock = dbItem ? (dbItem.batches || []).reduce((sum, b) => sum + Number(b.quantity || 0), 0) : 0;
+      const rawUnit = it.unit || (dbItem ? dbItem.unit : 'Cái');
+      const cleanUnit = (rawUnit.length > 8) ? (rawUnit.slice(0, 6) + '..') : rawUnit;
+
+      tbody.innerHTML += `
+        <tr>
+          <td class="text-center" style="vertical-align: middle;">${idx + 1}</td>
+          <td class="font-mono font-bold" style="vertical-align: middle; color: var(--primary-dark);">${it.itemCode || (dbItem ? dbItem.code : '---')}</td>
+          <td style="vertical-align: middle;"><strong>${it.itemName}</strong></td>
+          <td class="text-center font-bold" style="vertical-align: middle; white-space: nowrap;" title="${rawUnit}">${cleanUnit}</td>
+          <td class="text-center font-bold" style="vertical-align: middle;">
+            <span class="badge" style="background: ${currentStock >= it.quantity ? '#e0f2fe' : '#fee2e2'}; color: ${currentStock >= it.quantity ? '#0369a1' : '#dc2626'}; font-weight: 700; font-size: 12.5px; white-space: nowrap; padding: 4px 8px; border-radius: 6px;">
+              ${currentStock} ${cleanUnit}
+            </span>
+          </td>
+          <td class="text-center font-bold" style="vertical-align: middle; color: var(--secondary); font-size: 14.5px;">${it.quantity}</td>
+          <td style="vertical-align: middle;">${it.notes || '---'}</td>
+        </tr>
+      `;
+    });
+
+    modal.classList.add('open');
+    modal.style.display = 'flex';
+    modal.style.zIndex = '10000000';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    modal.style.pointerEvents = 'auto';
+  }
+  window.openDetailRequisitionModal = openDetailRequisitionModal;
+
+  function printRequisitionReceipt(req, settings) {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast('Vui lòng cho phép popup để in phiếu đề xuất!', 'warning');
+      return;
+    }
+
+    const parentOrg = settings?.parentOrg || 'SỞ Y TẾ THÀNH PHỐ HỒ CHÍ MINH';
+    const orgName = settings?.orgName || 'TRUNG TÂM PHÁP Y THÀNH PHỐ';
+    const isChem = req.warehouseId === 'CHEMICAL';
+
+    let rowsHtml = '';
+    req.items.forEach((item, index) => {
+      rowsHtml += `
+        <tr>
+          <td style="text-align: center;">${index + 1}</td>
+          <td><strong>${item.itemName}</strong><br><small style="color: #64748b;">Mã: ${item.itemCode || '---'}</small></td>
+          <td style="text-align: center;">${item.unit}</td>
+          <td style="text-align: center; font-weight: bold; font-size: 13.5px;">${formatNumber(item.quantity)}</td>
+          <td>${item.notes || '---'}</td>
+        </tr>
+      `;
+    });
+
+    const printHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>PHIẾU ĐỀ XUẤT LÃNH VẬT TƯ & HÀNG HÓA - ${req.code}</title>
+        <style>
+          @page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }
+          body { font-family: "Times New Roman", Times, serif; font-size: 13pt; line-height: 1.35; color: #000; margin: 0; padding: 0; }
+          .header-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+          .header-table td { vertical-align: top; }
+          .doc-title { text-align: center; font-size: 16pt; font-weight: bold; margin: 12px 0 4px 0; text-transform: uppercase; }
+          .doc-code { text-align: center; font-size: 11pt; font-style: italic; margin-bottom: 14px; }
+          .info-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 12.5pt; }
+          .info-table td { padding: 3px 0; }
+          .items-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+          .items-table th, .items-table td { border: 1px solid #000; padding: 7px 6px; font-size: 12pt; }
+          .items-table th { background: #f1f5f9; text-align: center; font-weight: bold; }
+          .sign-table { width: 100%; border-collapse: collapse; margin-top: 20px; page-break-inside: avoid; }
+          .sign-table td { text-align: center; vertical-align: top; width: 33.33%; font-size: 12pt; }
+          .sign-role { font-weight: bold; text-transform: uppercase; margin-bottom: 4px; }
+          .sign-note { font-style: italic; font-size: 10.5pt; }
+          .sign-space { height: 75px; }
+          .sign-name { font-weight: bold; font-size: 12.5pt; }
+        </style>
+      </head>
+      <body>
+        <table class="header-table">
+          <tr>
+            <td style="width: 50%; text-align: center;">
+              <span style="font-size: 11pt; text-transform: uppercase;">${parentOrg}</span><br>
+              <strong style="font-size: 11.5pt; text-transform: uppercase;">${orgName}</strong><br>
+              <span style="font-size: 11pt;">Kho: ${isChem ? 'Vật Tư & Hóa Chất' : 'Văn Phòng Phẩm'}</span>
+            </td>
+            <td style="width: 50%; text-align: center;">
+              <strong style="font-size: 11.5pt;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br>
+              <span style="font-size: 11.5pt; font-weight: bold; text-decoration: underline;">Độc lập - Tự do - Hạnh phúc</span><br>
+              <span style="font-size: 11pt; font-style: italic;">TP. Hồ Chí Minh, ${formatDate(req.date)}</span>
+            </td>
+          </tr>
+        </table>
+
+        <div class="doc-title">PHIẾU ĐỀ XUẤT LÃNH VẬT TƯ & VĂN PHÒNG PHẨM</div>
+        <div class="doc-code">Mã số đề xuất: <strong>${req.code}</strong></div>
+
+        <table class="info-table">
+          <tr>
+            <td style="width: 60%;">Khoa / Phòng đề xuất: <strong>${req.departmentName}</strong></td>
+            <td style="width: 40%;">Người đề xuất: <strong>${req.requester}</strong></td>
+          </tr>
+          <tr>
+            <td colspan="2">Lý do / Mục đích xin cấp phát: <em>${req.reason || 'Phục vụ công tác chuyên môn'}</em></td>
+          </tr>
+          <tr>
+            <td colspan="2">Trạng thái phiếu: <strong>${req.status === 'APPROVED' ? 'ĐÃ PHÊ DUYỆT & XUẤT KHO' : (req.status === 'PENDING' ? 'CHỜ PHÊ DUYỆT' : 'TỪ CHỐI')}</strong></td>
+          </tr>
+        </table>
+
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th style="width: 7%;">STT</th>
+              <th style="width: 45%;">Tên Vật Tư / Hàng Hóa Yêu Cầu</th>
+              <th style="width: 12%;">ĐVT</th>
+              <th style="width: 16%;">Số Lượng Xin</th>
+              <th style="width: 20%;">Ghi Chú</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <table class="sign-table">
+          <tr>
+            <td>
+              <div class="sign-role">NGƯỜI ĐỀ XUẤT</div>
+              <div class="sign-note">(Ký và ghi rõ họ tên)</div>
+              <div class="sign-space"></div>
+              <div class="sign-name">${req.requester}</div>
+            </td>
+            <td>
+              <div class="sign-role">TRƯỞNG KHOA / PHÒNG</div>
+              <div class="sign-note">(Ký và ghi rõ họ tên)</div>
+              <div class="sign-space"></div>
+              <div class="sign-name"></div>
+            </td>
+            <td>
+              <div class="sign-role">THỦ KHO XÁC NHẬN</div>
+              <div class="sign-note">(Ký và ghi rõ họ tên)</div>
+              <div class="sign-space"></div>
+              <div class="sign-name">${settings?.storekeeper || 'Cử nhân Lê Văn Quý'}</div>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 400);
+  }
+  
   function setupEventListeners() {
     // Setup Smart Autocomplete
     setupItemAutocomplete();
@@ -5390,6 +6460,366 @@ if (typeof module !== "undefined" && module.exports) {
     });
 
     // Header Quick Buttons
+    
+    
+    // REQUISITION EVENT LISTENERS
+    if ($('#btn-quick-create-requisition')) {
+      $('#btn-quick-create-requisition').onclick = () => openCreateRequisitionModal();
+    }
+    if ($('#btn-lock-open-requisition')) {
+      $('#btn-lock-open-requisition').onclick = () => openCreateRequisitionModal();
+    }
+    if ($('#btn-open-create-requisition')) {
+      $('#btn-open-create-requisition').onclick = () => openCreateRequisitionModal();
+    }
+    if ($('#btn-close-create-req-modal')) {
+      $('#btn-close-create-req-modal').onclick = () => closeCreateRequisitionModal();
+    }
+    if ($('#btn-cancel-create-req-modal')) {
+      $('#btn-cancel-create-req-modal').onclick = () => closeCreateRequisitionModal();
+    }
+    if ($('#btn-add-req-item-row')) {
+      $('#btn-add-req-item-row').onclick = () => addRequisitionItemRow();
+    }
+
+    if ($('#req-in-warehouse')) {
+      $('#req-in-warehouse').onchange = () => {
+        $('#req-create-items-tbody').innerHTML = '';
+        addRequisitionItemRow();
+      };
+    }
+
+    // Submit Create Requisition
+    if ($('#form-create-requisition')) {
+      $('#form-create-requisition').onsubmit = (e) => {
+        e.preventDefault();
+        const wh = $('#req-in-warehouse').value;
+        const deptSelect = $('#req-in-department');
+        const departmentId = deptSelect ? deptSelect.value : '';
+        const departmentName = (deptSelect?.selectedOptions?.[0]?.textContent || (deptSelect?.options && deptSelect?.selectedIndex >= 0 ? deptSelect.options[deptSelect.selectedIndex]?.textContent : '') || '').trim();
+        const requester = $('#req-in-requester') ? $('#req-in-requester').value.trim() : '';
+        const date = $('#req-in-date') ? $('#req-in-date').value : new Date().toISOString().slice(0, 10);
+        const reason = $('#req-in-reason') ? $('#req-in-reason').value.trim() : '';
+
+        const items = [];
+        const rows = $$('#req-create-items-tbody tr');
+
+        rows.forEach(r => {
+          const select = r.querySelector('.req-item-select');
+          if (!select) return;
+          const itemId = select.value;
+          if (!itemId) return;
+
+          const opt = select?.selectedOptions?.[0] || (select?.options && select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null);
+          const itemCode = opt?.getAttribute('data-code') || '';
+          const it = db.getItemById(itemId);
+          const itemName = it ? it.name : (opt?.textContent || '');
+          const unit = opt?.getAttribute('data-unit') || (it ? it.unit : 'Cái');
+          const qtyInput = r.querySelector('.req-item-qty');
+          const quantity = qtyInput ? (Number(qtyInput.value) || 1) : 1;
+          const notes = r.querySelector('.req-item-notes')?.value?.trim() || '';
+
+          items.push({
+            itemId,
+            itemCode,
+            itemName,
+            unit,
+            quantity,
+            notes
+          });
+        });
+
+        if (items.length === 0) {
+          showToast('Vui lòng chọn ít nhất 1 mặt hàng cần xin lãnh!', 'warning');
+          return;
+        }
+
+        const newReq = db.createRequisition({
+          warehouseId: wh,
+          departmentId,
+          departmentName,
+          requester,
+          date,
+          reason,
+          items
+        });
+
+        closeCreateRequisitionModal();
+        showToast(`🎉 Đã gửi Phiếu Đề Xuất (${newReq.code}) thành công! Thủ kho sẽ sớm phê duyệt.`, 'success');
+        updateRequisitionsBadge();
+
+        if (state.currentView === 'requisitions') {
+          renderRequisitionsView();
+        }
+
+        if (confirm(`Phiếu đề xuất ${newReq.code} đã gửi. Bạn có muốn in Phiếu Đề Xuất A4 ngay bây giờ?`)) {
+          printRequisitionReceipt(newReq, db.getData().settings);
+        }
+      };
+    }
+
+    // Filters for Requisitions
+    if ($('#req-search')) $('#req-search').oninput = () => renderRequisitionsView();
+    if ($('#req-status-filter')) $('#req-status-filter').onchange = () => renderRequisitionsView();
+    if ($('#req-dept-filter')) $('#req-dept-filter').onchange = () => renderRequisitionsView();
+
+    // Requisition Detail Modal actions
+    if ($('#btn-close-detail-req-modal')) {
+      $('#btn-close-detail-req-modal').onclick = () => {
+    const m = $('#modal-detail-requisition');
+    if (m) { m.classList.remove('open'); m.style.display = 'none'; }
+  };
+    }
+    if ($('#btn-print-requisition-a4')) {
+      $('#btn-print-requisition-a4').onclick = () => {
+        if (currentViewingRequisitionId) {
+          const req = db.getRequisitionById(currentViewingRequisitionId);
+          if (req) printRequisitionReceipt(req, db.getData().settings);
+        }
+      };
+    }
+
+    // Approve Requisition
+    if ($('#btn-approve-requisition')) {
+      $('#btn-approve-requisition').onclick = () => {
+        if (!currentViewingRequisitionId) return;
+        const req = db.getRequisitionById(currentViewingRequisitionId);
+        if (!req) return;
+
+        if (confirm(`Bạn có chắc chắn muốn PHÊ DUYỆT phiếu đề xuất ${req.code} của ${req.departmentName}? Hệ thống sẽ tự động trừ tồn kho và tạo Phiếu Xuất Kho.`)) {
+          const res = db.approveRequisition(currentViewingRequisitionId, db.getData().settings?.storekeeper || 'Cử nhân Lê Văn Quý');
+          if (res) {
+            $('#modal-detail-requisition').classList.remove('open');
+            showToast(`🎉 Đã phê duyệt và xuất kho thành công theo phiếu ${req.code}!`, 'success');
+            renderCurrentView();
+            updateRequisitionsBadge();
+
+            if (confirm(`Đã lập Phiếu Xuất Kho (${res.transaction.code}). Bạn có muốn in Phiếu Xuất Kho A4 ngay để ký bàn giao?`)) {
+              printStockOutReceipt(res.transaction, db.getData().settings);
+            }
+          } else {
+            showToast('Không thể phê duyệt phiếu này (có thể đã được duyệt trước đó)!', 'warning');
+          }
+        }
+      };
+    }
+
+    // Reject Requisition
+    if ($('#btn-reject-requisition')) {
+      $('#btn-reject-requisition').onclick = () => {
+        if (!currentViewingRequisitionId) return;
+        const reason = prompt('Nhập lý do từ chối cấp phát đề xuất này:', 'Hiện tại kho tạm thời chưa đáp ứng đủ số lượng yêu cầu');
+        if (reason !== null) {
+          db.rejectRequisition(currentViewingRequisitionId, reason.trim() || 'Từ chối cấp phát');
+          $('#modal-detail-requisition').classList.remove('open');
+          showToast('Đã từ chối phiếu đề xuất!', 'info');
+          renderRequisitionsView();
+          updateRequisitionsBadge();
+        }
+      };
+    }
+  
+    // Excel Import Actions in Stock In Modal
+    if ($('#btn-download-import-template')) {
+      $('#btn-download-import-template').onclick = () => downloadStockInExcelTemplate();
+    }
+
+    if ($('#btn-import-stock-in-excel')) {
+      $('#btn-import-stock-in-excel').onclick = () => {
+        $('#file-import-stock-in').value = '';
+        $('#file-import-stock-in').click();
+      };
+    }
+
+    if ($('#file-import-stock-in')) {
+      $('#file-import-stock-in').onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        showToast('Đang đọc file Excel ' + file.name + '...', 'info');
+        parseStockInExcelFile(file, (err, items) => {
+          if (err) {
+            showToast('Lỗi đọc file: ' + err.message, 'danger');
+            return;
+          }
+
+          // Clear existing rows
+          $('#in-items-tbody').innerHTML = '';
+
+          // Add each parsed item
+          items.forEach(item => {
+            addStockInItemFromImport(item);
+          });
+
+          showToast(`🟢 Đã nạp thành công ${items.length} mặt hàng từ file Excel vào phiếu!`, 'success');
+        });
+      };
+    }
+
+    // Batch Import Wizard Modal Events
+    if ($('#btn-quick-import-excel')) {
+      $('#btn-quick-import-excel').onclick = () => openBatchImportModal();
+    }
+    if ($('#nav-item-batch-import')) {
+      $('#nav-item-batch-import').onclick = () => openBatchImportModal();
+    }
+    if ($('#btn-close-batch-modal')) {
+      $('#btn-close-batch-modal').onclick = () => $('#modal-batch-import').classList.remove('open');
+    }
+    if ($('#btn-cancel-batch-modal')) {
+      $('#btn-cancel-batch-modal').onclick = () => $('#modal-batch-import').classList.remove('open');
+    }
+
+    if ($('#btn-batch-download-template')) {
+      $('#btn-batch-download-template').onclick = () => downloadStockInExcelTemplate();
+    }
+
+    if ($('#btn-batch-choose-file')) {
+      $('#btn-batch-choose-file').onclick = () => {
+        $('#batch-file-input').value = '';
+        $('#batch-file-input').click();
+      };
+    }
+
+    const handleBatchFileInput = (file) => {
+      if (!file) return;
+      $('#batch-file-info').style.display = 'block';
+      $('#batch-file-info').textContent = `📄 File đã chọn: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+
+      parseStockInExcelFile(file, (err, items) => {
+        if (err) {
+          showToast('Lỗi đọc file: ' + err.message, 'danger');
+          $('#batch-file-info').style.display = 'none';
+          return;
+        }
+        renderBatchImportPreview(items);
+        showToast(`🟢 Đã đọc thành công ${items.length} mặt hàng từ file Excel!`, 'success');
+      });
+    };
+
+    if ($('#batch-file-input')) {
+      $('#batch-file-input').onchange = (e) => handleBatchFileInput(e.target.files[0]);
+    }
+
+    // Drag & Drop on Batch Drop Zone
+    const dropZone = $('#batch-drop-zone');
+    if (dropZone) {
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#0f766e';
+        dropZone.style.backgroundColor = '#f0fdfa';
+      });
+      dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#0284c7';
+        dropZone.style.backgroundColor = '#f8fafc';
+      });
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#0284c7';
+        dropZone.style.backgroundColor = '#f8fafc';
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleBatchFileInput(e.dataTransfer.files[0]);
+        }
+      });
+    }
+
+    // Submit Batch Import
+    if ($('#form-batch-import')) {
+      $('#form-batch-import').onsubmit = (e) => {
+        e.preventDefault();
+        if (!batchImportParsedItems || batchImportParsedItems.length === 0) {
+          showToast('Vui lòng chọn file Excel có dữ liệu hàng nhập trước!', 'warning');
+          return;
+        }
+
+        const wh = $('#batch-warehouse').value;
+        const enteredCode = $('#batch-code') ? $('#batch-code').value.trim() : '';
+        const supplier = ($('#batch-supplier') ? $('#batch-supplier').value.trim() : '') || 'Nhập theo lô Excel';
+        const invoiceNumber = ($('#batch-invoice') ? $('#batch-invoice').value.trim() : '') || '---';
+        const receiver = ($('#batch-receiver') ? $('#batch-receiver').value.trim() : '') || ($('#sidebar-user-name')?.textContent || 'Lê Văn Quý');
+        const date = $('#batch-date').value;
+
+        const items = [];
+        let totalAmount = 0;
+
+        batchImportParsedItems.forEach(pi => {
+          let itemId = '';
+          let itemCode = pi.code;
+          let itemName = pi.name;
+          let unit = pi.unit || 'Cái';
+
+          // Check if item exists in warehouse
+          const existingItem = db.getItems(wh).find(i => 
+            (itemCode && i.code && i.code.toLowerCase() === itemCode.toLowerCase()) ||
+            (i.name && i.name.toLowerCase().trim() === itemName.toLowerCase().trim())
+          );
+
+          if (existingItem) {
+            itemId = existingItem.id;
+            itemCode = existingItem.code;
+            itemName = existingItem.name;
+            unit = existingItem.unit || unit;
+          } else {
+            // Auto create new item in database
+            const createdItem = db.saveItem({
+              warehouseId: wh,
+              code: itemCode,
+              name: itemName,
+              category: wh === 'CHEMICAL' ? 'Hóa chất phân tích độc chất & Sắc ký' : 'Vật phẩm phục vụ phòng ban',
+              unit: unit,
+              minStock: 5,
+              hazardLevel: 'Thường',
+              storageCondition: 'Nhiệt độ phòng'
+            });
+            itemId = createdItem.id;
+            itemCode = createdItem.code;
+            itemName = createdItem.name;
+          }
+
+          const quantity = pi.quantity || 1;
+          const unitPrice = pi.unitPrice || 0;
+          const amount = quantity * unitPrice;
+          totalAmount += amount;
+
+          items.push({
+            itemId,
+            itemCode,
+            itemName,
+            unit,
+            lotNumber: pi.lotNumber || 'LÔ-EXCEL',
+            expiryDate: pi.expiryDate || '---',
+            quantity,
+            unitPrice,
+            amount,
+            notes: pi.notes || ''
+          });
+        });
+
+        const tr = {
+          code: enteredCode,
+          warehouseId: wh,
+          date,
+          supplier,
+          invoiceNumber,
+          deliverer: 'Nhập từ file Excel',
+          receiver,
+          reason: 'Nhập kho hàng loạt từ file Excel',
+          totalAmount,
+          items
+        };
+
+        db.createStockInTransaction(tr);
+        $('#modal-batch-import').classList.remove('open');
+        showToast(`🎉 Đã nhập kho thành công ${items.length} mặt hàng từ file Excel!`, 'success');
+        renderCurrentView();
+
+        if (confirm(`Đã lưu thành công phiếu nhập ${items.length} mặt hàng. Bạn có muốn in Phiếu Nhập Kho A4 ngay bây giờ?`)) {
+          printStockInReceipt(tr, db.getData().settings);
+        }
+      };
+    }
+  
     $('#btn-quick-stock-in').onclick = () => openStockInModal();
     $('#btn-quick-stock-out').onclick = () => openStockOutModal();
     if ($('#btn-view-all-alerts')) $('#btn-view-all-alerts').onclick = () => switchView('alerts');
@@ -5500,20 +6930,23 @@ if (typeof module !== "undefined" && module.exports) {
         let itemId = select.value;
         if (!itemId) return;
 
-        let itemCode = '';
+        const codeInput = row.querySelector('.in-code');
+        let itemCode = codeInput ? codeInput.value.trim().toUpperCase() : '';
         let itemName = '';
         let unit = row.querySelector('.in-unit')?.value?.trim() || 'Cái';
 
         if (itemId === '__CUSTOM__') {
           const customName = row.querySelector('.in-custom-name')?.value?.trim();
-          const customCode = row.querySelector('.in-custom-code')?.value?.trim();
-
           if (!customName) return;
+
+          if (!itemCode) {
+            itemCode = generateItemCodeFromName(customName, wh);
+          }
 
           // Tự động tạo và lưu mặt hàng mới vào danh mục
           const createdItem = db.saveItem({
             warehouseId: wh,
-            code: customCode,
+            code: itemCode,
             name: customName,
             category: wh === 'CHEMICAL' ? 'Hóa chất phân tích độc chất & Sắc ký' : 'Vật phẩm phục vụ phòng ban',
             unit: unit,
@@ -5529,9 +6962,13 @@ if (typeof module !== "undefined" && module.exports) {
         } else {
           const item = db.getItemById(itemId);
           if (item) {
-            itemCode = item.code;
+            if (!itemCode) itemCode = item.code;
             itemName = item.name;
             if (!unit) unit = item.unit || 'Cái';
+            if (itemCode && itemCode !== item.code) {
+              item.code = itemCode;
+              db.save();
+            }
           }
         }
 
@@ -6210,6 +7647,193 @@ if (typeof module !== "undefined" && module.exports) {
     };
   }
 
+  
+  // ==========================================================================
+  // AUTHENTICATION & LOCK SCREEN MANAGEMENT
+  // ==========================================================================
+  const AUTH_KEY = 'forensic_store_auth_token';
+  const REMEMBER_KEY = 'forensic_store_remember_token';
+
+  function isUserAuthenticated() {
+    // Check session token
+    if (sessionStorage.getItem(AUTH_KEY) === 'authenticated') return true;
+    
+    // Check remember token
+    const rememberToken = localStorage.getItem(REMEMBER_KEY);
+    if (rememberToken) {
+      try {
+        const decoded = JSON.parse(atob(rememberToken));
+        // Valid for 30 days
+        if (decoded && decoded.expiresAt && decoded.expiresAt > Date.now()) {
+          sessionStorage.setItem(AUTH_KEY, 'authenticated');
+          return true;
+        }
+      } catch (e) {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
+    }
+    return false;
+  }
+
+  function setAuthenticated(rememberMe = true) {
+    sessionStorage.setItem(AUTH_KEY, 'authenticated');
+    if (rememberMe) {
+      const payload = {
+        authenticated: true,
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
+      };
+      localStorage.setItem(REMEMBER_KEY, btoa(JSON.stringify(payload)));
+    } else {
+      localStorage.removeItem(REMEMBER_KEY);
+    }
+  }
+
+  function lockAppScreen(showToastMsg = true) {
+    sessionStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem(REMEMBER_KEY);
+    const overlay = $('#lock-screen-overlay');
+    if (overlay) {
+      overlay.style.display = 'flex';
+      const pwdInput = $('#lock-password-input');
+      if (pwdInput) {
+        pwdInput.value = '';
+        setTimeout(() => pwdInput.focus(), 100);
+      }
+      const errMsg = $('#lock-error-msg');
+      if (errMsg) errMsg.style.display = 'none';
+    }
+    if (showToastMsg) {
+      showToast('🔒 Đã khóa màn hình bảo vệ!', 'info');
+    }
+  }
+
+  function unlockAppScreen() {
+    const overlay = $('#lock-screen-overlay');
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
+  function getSystemPassword() {
+    const settings = db.getData().settings;
+    if (settings && settings.security && settings.security.passwordHash) {
+      return settings.security.passwordHash;
+    }
+    return '123456';
+  }
+
+  function verifyPassword(enteredPassword) {
+    const currentPassword = getSystemPassword();
+    return enteredPassword === currentPassword;
+  }
+
+  function initLockScreen() {
+    const overlay = $('#lock-screen-overlay');
+    if (!overlay) return;
+
+    if (isUserAuthenticated()) {
+      unlockAppScreen();
+    } else {
+      overlay.style.display = 'flex';
+      const pwdInput = $('#lock-password-input');
+      if (pwdInput) setTimeout(() => pwdInput.focus(), 200);
+    }
+
+    // Toggle show/hide password
+    const btnToggle = $('#btn-toggle-lock-pwd');
+    const pwdInput = $('#lock-password-input');
+    if (btnToggle && pwdInput) {
+      btnToggle.onclick = () => {
+        if (pwdInput.type === 'password') {
+          pwdInput.type = 'text';
+          btnToggle.textContent = '🙈';
+        } else {
+          pwdInput.type = 'password';
+          btnToggle.textContent = '👁️';
+        }
+      };
+    }
+
+    // Login Form Submit
+    const form = $('#form-login-lock');
+    if (form) {
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const pwd = pwdInput ? pwdInput.value.trim() : '';
+        const rememberMe = $('#lock-remember-me') ? $('#lock-remember-me').checked : true;
+        const errMsg = $('#lock-error-msg');
+
+        if (verifyPassword(pwd)) {
+          setAuthenticated(rememberMe);
+          unlockAppScreen();
+          if (errMsg) errMsg.style.display = 'none';
+          showToast('🔓 Xác thực thành công! Chào mừng Cử nhân Lê Văn Quý.', 'success');
+          renderCurrentView();
+        } else {
+          if (errMsg) {
+            errMsg.style.display = 'block';
+            errMsg.textContent = '⚠️ Mật khẩu không chính xác. Vui lòng kiểm tra lại!';
+          }
+          if (pwdInput) {
+            pwdInput.value = '';
+            pwdInput.focus();
+          }
+        }
+      };
+    }
+
+    // Topbar Lock Button
+    const btnTopbarLock = $('#btn-topbar-lock');
+    if (btnTopbarLock) {
+      btnTopbarLock.onclick = () => lockAppScreen(true);
+    }
+
+    // Lock Now Button in Settings
+    const btnLockNow = $('#btn-lock-screen-now');
+    if (btnLockNow) {
+      btnLockNow.onclick = () => lockAppScreen(true);
+    }
+
+    // Change Password Form
+    const formChangePwd = $('#form-change-password');
+    if (formChangePwd) {
+      formChangePwd.onsubmit = (e) => {
+        e.preventDefault();
+        const currentPwd = $('#input-current-password').value.trim();
+        const newPwd = $('#input-new-password').value.trim();
+        const confirmNewPwd = $('#input-confirm-new-password').value.trim();
+
+        if (!verifyPassword(currentPwd)) {
+          showToast('❌ Mật khẩu hiện tại không chính xác!', 'danger');
+          $('#input-current-password').focus();
+          return;
+        }
+
+        if (newPwd.length < 4) {
+          showToast('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!', 'warning');
+          $('#input-new-password').focus();
+          return;
+        }
+
+        if (newPwd !== confirmNewPwd) {
+          showToast('⚠️ Mật khẩu mới và xác nhận mật khẩu không khớp nhau!', 'warning');
+          $('#input-confirm-new-password').focus();
+          return;
+        }
+
+        // Save new password
+        const data = db.getData();
+        if (!data.settings.security) data.settings.security = {};
+        data.settings.security.passwordHash = newPwd;
+        db.save();
+        db.triggerCloudAutoSync();
+
+        formChangePwd.reset();
+        showToast('🎉 Đã cập nhật mật khẩu mới thành công! Mật khẩu mới đã được đồng bộ lên Đám mây.', 'success');
+      };
+    }
+  }
+
   // Initialize App
   async function startApp() {
     db.init();
@@ -6219,6 +7843,7 @@ if (typeof module !== "undefined" && module.exports) {
     updateDepartmentDropdowns();
     loadSettingsView();
     setupEventListeners();
+    initLockScreen();
     renderCurrentView();
     updateGlobalAlertBadge();
 

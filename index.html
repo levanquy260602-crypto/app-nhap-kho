@@ -13,11 +13,76 @@
   <!-- Supabase Cloud SDK (Hỗ trợ đồng bộ đa thiết bị thời gian thực) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+  <!-- SheetJS (XLSX) SDK: Đọc & Xuất File Excel (.xlsx, .xls, .csv) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
   <!-- CSS Stylesheet (Tự động nạp cả khi ở trong thư mục css/ hoặc để cùng cấp) -->
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+  <!-- 0. LOCK / LOGIN SECURITY SCREEN OVERLAY -->
+  <div id="lock-screen-overlay" class="lock-screen-overlay" style="display: flex;">
+    <div class="lock-card">
+      <div class="lock-card-header">
+        <div class="lock-logo-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <h2 class="lock-title">ForensicStore Pro</h2>
+        <p class="lock-subtitle">Trung Tâm Pháp Y Thành Phố Hồ Chí Minh</p>
+      </div>
+
+      <div class="lock-card-body">
+        <div class="lock-badge">
+          <span>🔒 HỆ THỐNG ĐÃ ĐƯỢC KHÓA BẢO VỆ</span>
+        </div>
+        <p class="lock-instruction">
+          Vui lòng nhập mật khẩu xác thực để mở khóa và truy cập dữ liệu kho:
+        </p>
+
+        <form id="form-login-lock">
+          <div class="lock-input-group">
+            <input type="password" id="lock-password-input" class="form-control lock-input font-mono" placeholder="Nhập mật khẩu..." autofocus required autocomplete="current-password">
+            <button type="button" id="btn-toggle-lock-pwd" class="btn-toggle-pwd" title="Hiện / Ẩn mật khẩu" tabindex="-1">
+              👁️
+            </button>
+          </div>
+
+          <div id="lock-error-msg" class="lock-error" style="display: none;">
+            ⚠️ Mật khẩu không chính xác. Vui lòng thử lại!
+          </div>
+
+          <label class="lock-remember-label">
+            <input type="checkbox" id="lock-remember-me" checked>
+            <span>Ghi nhớ đăng nhập trên thiết bị này (30 ngày)</span>
+          </label>
+
+          <button type="submit" class="btn btn-primary btn-block lock-btn-submit" id="btn-unlock-submit">
+            🔓 MỞ KHÓA TRUY CẬP
+          </button>
+        </form>
+
+        
+        <button type="button" id="btn-lock-open-requisition" onclick="if(window.openCreateRequisitionModal) window.openCreateRequisitionModal();" class="btn btn-outline btn-block" style="margin-top: 12px; font-size: 13px; font-weight: 700; color: #0f766e; border-color: #99f6e4; background: #f0fdfa; padding: 10px; border-radius: 8px;">
+          📝 Khoa / Phòng Đăng Ký Lãnh Vật Tư & VPP
+        </button>
+        <div class="lock-hint-box">
+          <div style="font-size: 11.5px; color: var(--text-muted); line-height: 1.5;">
+            💡 <em>Mật khẩu mặc định: <strong>123456</strong> (Bạn có thể đổi mật khẩu bất kỳ lúc nào trong phần Cài Đặt).</em>
+          </div>
+        </div>
+      </div>
+
+      <div class="lock-card-footer">
+        <span>Bảo mật dữ liệu đám mây Supabase Cloud | Chuẩn Bộ Y Tế</span>
+      </div>
+    </div>
+  </div>
+
 
   <div class="app-container">
     <!-- SIDEBAR BACKDROP (MOBILE) -->
@@ -89,6 +154,16 @@
             <span class="badge badge-danger" id="nav-alert-count">0</span>
           </a>
 
+          <a class="nav-item" data-view="requisitions" id="nav-item-requisitions">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              <path d="m9 14 2 2 4-4"></path>
+            </svg>
+            <span>Phiếu Đề Xuất</span>
+            <span class="badge badge-warning" id="nav-requisitions-badge" style="display: none; background: #f59e0b; color: #fff; font-weight: 700; margin-left: 4px; padding: 2px 7px; border-radius: 10px; font-size: 11px;">0</span>
+          </a>
+
           <!-- DROPDOWN: NGHIỆP VỤ & BÁO CÁO -->
           <div class="nav-dropdown" id="nav-dropdown-more">
             <button type="button" class="nav-dropdown-toggle" id="btn-dropdown-more">
@@ -121,6 +196,22 @@
                 </svg>
                 <span>Báo Cáo & In Thẻ Kho</span>
               </a>
+              <a class="nav-dropdown-item" id="nav-item-batch-import" style="cursor: pointer;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Nhập Hàng Loạt Từ Excel</span>
+              </a>
+              <a class="nav-dropdown-item nav-item" data-view="requisitions">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                  <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                  <path d="m9 14 2 2 4-4"></path>
+                </svg>
+                <span>Duyệt Đề Xuất Khoa Phòng</span>
+              </a>
               <div class="nav-dropdown-divider"></div>
               <a class="nav-dropdown-item nav-item" data-view="settings">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -134,12 +225,17 @@
         </nav>
 
         <!-- USER PROFILE IN TOPBAR -->
-        <div class="topbar-user-profile">
-          <div class="user-avatar">TK</div>
-          <div class="user-info">
-            <div class="user-name" id="sidebar-user-name">Lê Văn Quý</div>
-            <div class="user-role">Thủ kho Vật tư & VPP</div>
+        <div class="topbar-user-profile" style="display: flex; align-items: center; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="user-avatar">TK</div>
+            <div class="user-info">
+              <div class="user-name" id="sidebar-user-name">Lê Văn Quý</div>
+              <div class="user-role">Thủ kho Vật tư & VPP</div>
+            </div>
           </div>
+          <button type="button" id="btn-topbar-lock" class="btn btn-outline btn-sm" title="Khóa màn hình / Đăng xuất" style="padding: 4px 10px; font-size: 12px; border-color: rgba(255,255,255,0.4); color: #fff; background: rgba(0,0,0,0.2); border-radius: 6px; font-weight: 600;">
+            🔒 Khóa
+          </button>
         </div>
       </div>
     </header>
@@ -175,6 +271,12 @@
             <span class="status-text" id="cloud-sync-text">Cục Bộ (Offline)</span>
             <button type="button" class="btn-sync-icon" id="btn-sync-now" title="Đồng bộ đám mây ngay">🔄</button>
           </div>
+          <button class="btn" id="btn-quick-create-requisition" onclick="if(window.openCreateRequisitionModal) window.openCreateRequisitionModal();" style="background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%); color: #fff; font-weight: 700; border: none; box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3);" title="Dành cho Khoa / Phòng gửi đề xuất xin lãnh vật tư & VPP">
+            📝 Đề Xuất Lãnh Hàng
+          </button>
+          <button class="btn btn-outline" id="btn-quick-import-excel" style="color: #0284c7; border-color: #38bdf8; font-weight: 600;" title="Nhập kho nhanh hàng loạt từ file Excel">
+            📥 Nhập Excel
+          </button>
           <button class="btn btn-primary" id="btn-quick-stock-in">
             Nhập Kho
           </button>
@@ -687,9 +789,152 @@
           </div>
         </section>
 
+        
+        <!-- 5B. VIEW: REQUISITIONS MANAGEMENT (PHIẾU ĐỀ XUẤT KHOA PHÒNG) -->
+        <section id="view-requisitions" class="view-panel" style="display: none;">
+          <!-- SUMMARY CARDS -->
+          <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+            <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+              <div class="stat-card-header">
+                <span class="stat-label">Chờ Phê Duyệt</span>
+                <span style="font-size: 20px;">🟡</span>
+              </div>
+              <div class="stat-value" id="req-stat-pending" style="color: #d97706;">0</div>
+              <div class="stat-desc">Cần thủ kho kiểm tra & duyệt xuất</div>
+            </div>
+
+            <div class="stat-card" style="border-left: 4px solid #10b981;">
+              <div class="stat-card-header">
+                <span class="stat-label">Đã Duyệt & Xuất Kho</span>
+                <span style="font-size: 20px;">🟢</span>
+              </div>
+              <div class="stat-value" id="req-stat-approved" style="color: #059669;">0</div>
+              <div class="stat-desc">Đã trừ tồn kho & lập phiếu xuất</div>
+            </div>
+
+            <div class="stat-card" style="border-left: 4px solid #ef4444;">
+              <div class="stat-card-header">
+                <span class="stat-label">Từ Chối</span>
+                <span style="font-size: 20px;">🔴</span>
+              </div>
+              <div class="stat-value" id="req-stat-rejected" style="color: #dc2626;">0</div>
+              <div class="stat-desc">Không duyệt cấp phát</div>
+            </div>
+
+            <div class="stat-card" style="border-left: 4px solid #0284c7;">
+              <div class="stat-card-header">
+                <span class="stat-label">Tổng Đề Xuất</span>
+                <span style="font-size: 20px;">📋</span>
+              </div>
+              <div class="stat-value" id="req-stat-total" style="color: #0284c7;">0</div>
+              <div class="stat-desc">Tất cả phiếu của các khoa/phòng</div>
+            </div>
+          </div>
+
+          <!-- TABLE CARD -->
+          <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h3 class="card-title">Danh Sách Phiếu Đề Xuất Lãnh Vật Tư & Văn Phòng Phẩm</h3>
+                <p style="font-size: 12.5px; color: var(--text-muted); margin: 3px 0 0 0;">Thủ kho kiểm tra số lượng và bấm phê duyệt để hệ thống tự động trừ kho và lập phiếu xuất.</p>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn btn-primary" id="btn-open-create-requisition" onclick="if(window.openCreateRequisitionModal) window.openCreateRequisitionModal();">
+                  + Lập Phiếu Đề Xuất Mới
+                </button>
+              </div>
+            </div>
+
+            <div class="card-body" style="background: var(--bg-alt); border-bottom: 1px solid var(--border); padding: 12px 16px;">
+              <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;">
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; flex: 1;">
+                  <div class="search-box" style="max-width: 280px; flex: 1;">
+                    <input type="text" class="form-control" id="req-search" placeholder="🔍 Tìm mã phiếu, khoa phòng, người đề xuất...">
+                  </div>
+                  <select class="form-control" id="req-status-filter" style="width: 170px;">
+                    <option value="ALL">-- Tất Cả Trạng Thái --</option>
+                    <option value="PENDING" selected>🟡 Chờ Phê Duyệt</option>
+                    <option value="APPROVED">🟢 Đã Xuất Kho</option>
+                    <option value="REJECTED">🔴 Từ Chối</option>
+                  </select>
+                  <select class="form-control" id="req-dept-filter" style="width: 200px;">
+                    <option value="ALL">-- Tất Cả Khoa / Phòng --</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-body" style="padding: 0;">
+              <div class="table-responsive">
+                <table class="data-table" id="table-requisitions">
+                  <thead>
+                    <tr>
+                      <th style="width: 12%;">Mã Đề Xuất</th>
+                      <th style="width: 10%;">Ngày Gửi</th>
+                      <th style="width: 8%;">Kho</th>
+                      <th style="width: 20%;">Khoa / Phòng Đề Xuất</th>
+                      <th style="width: 14%;">Người Đề Xuất</th>
+                      <th style="width: 10%; text-align: center;">Mặt Hàng</th>
+                      <th style="width: 12%; text-align: center;">Trạng Thái</th>
+                      <th style="width: 14%; text-align: center;">Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody id="requisitions-tbody">
+                    <!-- Dynamic rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- 6. VIEW: SETTINGS & DATABASE BACKUP -->
         <section id="view-settings" class="view-panel" style="display: none;">
           <div class="form-grid">
+            
+            <!-- SECURITY & PASSWORD PROTECTION -->
+            <div class="card col-span-2" style="border-left: 4px solid var(--primary);">
+              <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 20px;">🔐</span>
+                  <h3 class="card-title">Bảo Mật & Mật Khẩu Đăng Nhập</h3>
+                </div>
+                <span class="tag tag-success font-bold" id="badge-auth-status">Đang Bật Bảo Vệ</span>
+              </div>
+              <div class="card-body">
+                <form id="form-change-password" style="display: flex; flex-direction: column; gap: 14px; max-width: 600px;">
+                  <p style="font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5;">
+                    Đặt mật khẩu bảo vệ để ngăn chặn người lạ truy cập vào dữ liệu kho khi mở web. Mật khẩu sẽ được tự động đồng bộ trên tất cả các thiết bị kết nối.
+                  </p>
+
+                  <div class="form-grid" style="gap: 12px; grid-template-columns: 1fr 1fr;">
+                    <div class="form-group">
+                      <label class="form-label">Mật khẩu hiện tại <span class="required">*</span>:</label>
+                      <input type="password" class="form-control font-mono" id="input-current-password" placeholder="Mật khẩu hiện tại" required>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Mật khẩu mới <span class="required">*</span>:</label>
+                      <input type="password" class="form-control font-mono" id="input-new-password" placeholder="Mật khẩu mới (ít nhất 4 ký tự)" required minlength="4">
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Xác nhận mật khẩu mới <span class="required">*</span>:</label>
+                    <input type="password" class="form-control font-mono" id="input-confirm-new-password" placeholder="Nhập lại mật khẩu mới" required minlength="4">
+                  </div>
+
+                  <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 4px;">
+                    <button type="submit" class="btn btn-primary" style="font-weight: 700;">
+                      💾 Cập Nhật Mật Khẩu Mới
+                    </button>
+                    <button type="button" class="btn btn-outline" id="btn-lock-screen-now" style="color: var(--danger); border-color: var(--danger); font-weight: 600;">
+                      🔒 Khóa Màn Hình Ngay
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
             <!-- AGENCY SETTINGS -->
             <div class="card">
               <div class="card-header">
@@ -1052,11 +1297,18 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
             </div>
           </div>
 
-          <div class="table-section-header">
+          <div class="table-section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <h4>Danh Sách Chi Tiết Hàng Hóa Nhập Kho</h4>
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <input type="file" id="file-import-stock-in" accept=".xlsx,.xls,.csv" style="display: none;">
+              <button type="button" class="btn btn-sm" id="btn-import-stock-in-excel" style="background: #0284c7; color: #fff; font-weight: 600; border: none; padding: 6px 14px;" title="Tự động đọc file Excel và điền hàng loạt vào bảng">
+                📥 Nhập Từ Excel
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-download-import-template" style="color: #0369a1; border-color: #7dd3fc; font-weight: 600; padding: 6px 12px;" title="Tải file Excel mẫu chuẩn (.xlsx) để điền">
+                📋 Tải Mẫu Excel
+              </button>
               <button type="button" class="btn btn-outline btn-sm" id="btn-in-lookup-catalog">🔍 Tra Cứu Mã Chuẩn</button>
-              <button type="button" class="btn btn-primary btn-sm" id="btn-add-in-row">+ Thêm Dòng Mặt Hàng</button>
+              <button type="button" class="btn btn-primary btn-sm" id="btn-add-in-row">+ Thêm Dòng</button>
             </div>
           </div>
 
@@ -1064,13 +1316,14 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
             <table class="table" id="table-stock-in-items">
               <thead>
                 <tr>
-                  <th style="width: 30%;">Mặt Hàng Nhập <span class="required">*</span></th>
-                  <th style="width: 10%;">ĐVT</th>
-                  <th style="width: 15%;">Số Lô (Lot No)</th>
-                  <th style="width: 15%;">Hạn Dùng (Exp)</th>
-                  <th style="width: 12%;">Số Lượng <span class="required">*</span></th>
-                  <th style="width: 12%;">Đơn Giá (VNĐ)</th>
-                  <th style="width: 6%; text-align: center;">Xóa</th>
+                  <th style="width: 16%;">Mã Hàng Hóa <span class="required">*</span></th>
+                  <th style="width: 26%;">Tên Mặt Hàng / Vật Tư <span class="required">*</span></th>
+                  <th style="width: 8%;">ĐVT</th>
+                  <th style="width: 13%;">Số Lô (Lot No)</th>
+                  <th style="width: 13%;">Hạn Dùng (Exp)</th>
+                  <th style="width: 10%;">Số Lượng <span class="required">*</span></th>
+                  <th style="width: 10%;">Đơn Giá (đ)</th>
+                  <th style="width: 4%; text-align: center;">Xóa</th>
                 </tr>
               </thead>
               <tbody id="in-items-tbody">
@@ -1087,6 +1340,113 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
           <div class="modal-footer-actions">
             <button type="button" class="btn btn-outline" id="btn-cancel-in-modal" style="padding: 10px 18px;">Hủy Bỏ</button>
             <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 14px; font-weight: 700;">💾 HOÀN TẤT & LƯU PHIẾU NHẬP</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2B. MODAL: NHẬP KHO HÀNG LOẠT TỪ FILE EXCEL (BATCH IMPORT WIZARD) -->
+  <div class="modal-overlay" id="modal-batch-import">
+    <div class="modal-container modal-xl">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0f766e 0%, #0284c7 100%); color: white;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">📥</span>
+          <div>
+            <h3 style="color: white; margin: 0; font-size: 17px;">Nhập Kho Hàng Loạt Bằng File Excel (.xlsx / .csv)</h3>
+            <p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.9;">Tải lên file danh sách hàng nhập, hệ thống sẽ tự động tạo phiếu và cập nhật tồn kho tức thì</p>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-icon" id="btn-close-batch-modal" style="color: white; border-color: rgba(255,255,255,0.4);">&times;</button>
+      </div>
+      <form id="form-batch-import">
+        <div class="modal-body" style="padding: 16px 20px;">
+          <!-- 1. THÔNG TIN CHỨNG TỪ NHẬP -->
+          <div class="receipt-header-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px;">
+            <div class="form-group">
+              <label class="form-label">Kho Tiếp Nhận <span class="required">*</span></label>
+              <select class="form-control" id="batch-warehouse" required>
+                <option value="CHEMICAL">Kho Vật Tư</option>
+                <option value="OFFICE">Kho Văn Phòng Phẩm</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Số Phiếu Nhập:</label>
+              <input type="text" class="form-control font-mono" id="batch-code" placeholder="Để trống hoặc tự điền (VD: PN-2026-001)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ngày Nhập Kho <span class="required">*</span></label>
+              <input type="date" class="form-control" id="batch-date" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nhà Cung Cấp / Nguồn Nhập:</label>
+              <input type="text" class="form-control" id="batch-supplier" placeholder="VD: Công ty Dược TW, Ngân sách Sở Y tế...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Số Hóa Đơn / Hợp Đồng:</label>
+              <input type="text" class="form-control font-mono" id="batch-invoice" placeholder="VD: HĐ-88392">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Thủ Kho Tiếp Nhận:</label>
+              <input type="text" class="form-control" id="batch-receiver" value="Cử nhân Lê Văn Quý">
+            </div>
+          </div>
+
+          <!-- 2. FILE UPLOAD & DROP ZONE -->
+          <div style="background: #f8fafc; border: 2px dashed #0284c7; border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 16px; transition: all 0.2s ease;" id="batch-drop-zone">
+            <input type="file" id="batch-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
+            <div style="font-size: 36px; margin-bottom: 8px;">📊</div>
+            <h4 style="font-size: 15px; font-weight: 700; color: #0369a1; margin-bottom: 4px;">Kéo & Thả File Excel Vào Đây Hoặc Bấm Chọn File</h4>
+            <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px;">Hỗ trợ định dạng Microsoft Excel <strong>.xlsx, .xls</strong> hoặc <strong>.csv</strong></p>
+            <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-primary" id="btn-batch-choose-file" style="background: #0284c7; border: none; font-weight: 700; padding: 8px 20px;">
+                📂 Chọn File Excel Từ Máy Tính
+              </button>
+              <button type="button" class="btn btn-outline" id="btn-batch-download-template" style="color: #0369a1; border-color: #7dd3fc; font-weight: 600;">
+                📋 Tải File Excel Mẫu Chuẩn (.xlsx)
+              </button>
+            </div>
+            <div id="batch-file-info" style="display: none; margin-top: 12px; font-size: 13px; font-weight: 600; color: var(--primary-dark); background: #f0fdfa; padding: 6px 12px; border-radius: 6px; border: 1px solid #ccfbf1; width: fit-content; margin-left: auto; margin-right: auto;"></div>
+          </div>
+
+          <!-- 3. PREVIEW TABLE -->
+          <div class="table-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;">Danh Sách Mặt Hàng Đọc Được Từ File (<span id="batch-preview-count">0</span> mặt hàng)</h4>
+            <span style="font-size: 12.5px; color: var(--text-muted);">Hệ thống tự động tra cứu mã chuẩn và tạo mới mặt hàng nếu chưa có</span>
+          </div>
+
+          <div class="table-responsive" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
+            <table class="table" id="table-batch-preview">
+              <thead>
+                <tr style="position: sticky; top: 0; background: var(--bg-alt); z-index: 1;">
+                  <th style="width: 5%; text-align: center;">STT</th>
+                  <th style="width: 14%;">Mã Hàng</th>
+                  <th style="width: 32%;">Tên Mặt Hàng / Vật Tư</th>
+                  <th style="width: 10%; text-align: center;">ĐVT</th>
+                  <th style="width: 12%; text-align: center;">Số Lượng</th>
+                  <th style="width: 13%; text-align: right;">Đơn Giá (đ)</th>
+                  <th style="width: 14%; text-align: right;">Thành Tiền</th>
+                </tr>
+              </thead>
+              <tbody id="batch-preview-tbody">
+                <tr>
+                  <td colspan="7" class="text-center" style="padding: 30px; color: var(--text-muted);">Chưa có file nào được chọn. Vui lòng chọn file Excel để xem trước dữ liệu.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="modal-footer-summary">
+            <span>Tổng Mặt Hàng: <strong id="batch-total-items" style="font-size: 15px;">0</strong></span>
+            <span style="margin-left: 20px;">Tổng Số Lượng: <strong id="batch-total-qty" style="font-size: 15px; color: var(--secondary);">0</strong></span>
+            <span style="margin-left: 20px;">Tổng Tiền: <strong id="batch-total-amount" style="font-size: 16px; color: var(--primary-dark);">0 đ</strong></span>
+          </div>
+          <div class="modal-footer-actions">
+            <button type="button" class="btn btn-outline" id="btn-cancel-batch-modal" style="padding: 10px 18px;">Hủy Bỏ</button>
+            <button type="submit" class="btn btn-primary" id="btn-submit-batch-import" style="padding: 10px 24px; font-size: 14px; font-weight: 700; background: #0284c7; border: none;" disabled>
+              💾 XÁC NHẬN NHẬP KHO HÀNG LOẠT
+            </button>
           </div>
         </div>
       </form>
@@ -1285,6 +1645,174 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  
+  <!-- MODAL: LẬP PHIẾU ĐỀ XUẤT LÃNH HÀNG (KHOA / PHÒNG) -->
+  <div class="modal-overlay" id="modal-create-requisition">
+    <div class="modal-container modal-xl">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0f766e 0%, #0891b2 100%); color: white;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">📝</span>
+          <div>
+            <h3 style="color: white; margin: 0; font-size: 17px;">Phiếu Đăng Ký Đề Xuất Lãnh Vật Tư & Văn Phòng Phẩm</h3>
+            <p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.9;">Dành cho các Khoa / Phòng gửi yêu cầu cấp phát vật tư phục vụ công tác</p>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-icon" id="btn-close-create-req-modal" style="color: white; border-color: rgba(255,255,255,0.4);">&times;</button>
+      </div>
+      <form id="form-create-requisition">
+        <div class="modal-body" style="padding: 16px 20px;">
+          <!-- 1. THÔNG TIN KHOA PHÒNG -->
+          <div class="receipt-header-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 16px;">
+            <div class="form-group">
+              <label class="form-label">Xin Lãnh Tại Kho <span class="required">*</span></label>
+              <select class="form-control" id="req-in-warehouse" required>
+                <option value="ALL" selected>📦 Tất Cả Các Kho (Kho Vật Tư & VPP)</option>
+                <option value="OFFICE">📁 Kho Văn Phòng Phẩm</option>
+                <option value="CHEMICAL">🧪 Kho Vật Tư & Hóa Chất</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Khoa / Phòng Đề Xuất <span class="required">*</span></label>
+              <select class="form-control" id="req-in-department" required>
+                <option value="">-- Chọn Khoa / Phòng đề xuất --</option>
+                <option value="PB_HANHCHINH">Phòng Tổ chức - Hành chính - Quản trị</option>
+                <option value="PB_TAICHINH">Phòng Kế hoạch - Tài chính</option>
+                <option value="K_GIAMDINH">Khoa Giám định</option>
+                <option value="K_XN_ADN">Khoa Xét nghiệm ADN</option>
+                <option value="K_HOAPHAP">Khoa Hóa pháp</option>
+                <option value="K_GPB">Khoa Giải phẫu bệnh</option>
+                <option value="PB_GIAMDOC">Ban Giám đốc Trung tâm</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Họ & Tên Người Đề Xuất <span class="required">*</span></label>
+              <input type="text" class="form-control" id="req-in-requester" placeholder="Nhập họ tên cán bộ xin lãnh..." required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ngày Đề Xuất <span class="required">*</span></label>
+              <input type="date" class="form-control" id="req-in-date" required>
+            </div>
+            <div class="form-group col-span-2">
+              <label class="form-label">Lý Do / Mục Đích Sử Dụng</label>
+              <input type="text" class="form-control" id="req-in-reason" placeholder="VD: Phục vụ công tác giám định độc chất Quý 3, phục vụ văn phòng thường quy...">
+            </div>
+          </div>
+
+          <!-- 2. BẢNG CHỌN MẶT HÀNG (CHỈ HIỂN THỊ HÀNG CÒN TỒN) -->
+          <div class="table-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div>
+              <h4 style="margin: 0;">Danh Sách Mặt Hàng Đề Xuất Lãnh</h4>
+              <span style="font-size: 12px; color: var(--primary-dark); font-weight: 600;">✨ Hệ thống chỉ hiển thị những mặt hàng ĐANG CÒN HÀNG TRONG KHO để bạn lựa chọn</span>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-add-req-item-row" style="background: #0284c7; border: none; font-weight: 600;">
+              + Thêm Mặt Hàng
+            </button>
+          </div>
+
+          <div class="table-responsive" style="max-height: 340px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+            <table class="data-table" id="table-req-create-items" style="table-layout: fixed; width: 100%; min-width: 780px;">
+              <thead>
+                <tr style="position: sticky; top: 0; background: var(--bg-alt); z-index: 1;">
+                  <th style="width: 44%; min-width: 260px;">Mặt Hàng Xin Lãnh (Kèm Tồn Khả Dụng) <span class="required">*</span></th>
+                  <th style="width: 10%; min-width: 70px; text-align: center;">ĐVT</th>
+                  <th style="width: 14%; min-width: 95px; text-align: center;">Tồn Khả Dụng</th>
+                  <th style="width: 12%; min-width: 80px; text-align: center;">Số Lượng Xin <span class="required">*</span></th>
+                  <th style="width: 15%; min-width: 100px;">Ghi Chú</th>
+                  <th style="width: 5%; min-width: 40px; text-align: center;">Xóa</th>
+                </tr>
+              </thead>
+              <tbody id="req-create-items-tbody">
+                <!-- Dynamic rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="modal-footer-summary">
+            <span>Tổng Mặt Hàng Xin Lãnh: <strong id="req-create-items-count" style="font-size: 15px; color: var(--primary-dark);">0</strong></span>
+            <span style="margin-left: 20px;">Tổng Số Lượng: <strong id="req-create-total-qty" style="font-size: 15px; color: var(--secondary);">0</strong></span>
+          </div>
+          <div class="modal-footer-actions">
+            <button type="button" class="btn btn-outline" id="btn-cancel-create-req-modal" style="padding: 10px 18px;">Hủy Bỏ</button>
+            <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 14px; font-weight: 700; background: linear-gradient(135deg, #0f766e 0%, #0891b2 100%); border: none;">
+              📨 GỬI PHIẾU ĐỀ XUẤT LÃNH HÀNG
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- MODAL: CHI TIẾT & PHÊ DUYỆT ĐỀ XUẤT (THỦ KHO) -->
+  <div class="modal-overlay" id="modal-detail-requisition">
+    <div class="modal-container modal-xl">
+      <div class="modal-header" style="background: linear-gradient(135deg, #1e293b 0%, #0f766e 100%); color: white;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">📋</span>
+          <div>
+            <h3 style="color: white; margin: 0; font-size: 17px;" id="req-detail-title">Chi Tiết Phiếu Đề Xuất Lãnh Hàng</h3>
+            <p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.9;" id="req-detail-subtitle">Mã phiếu: DX-2026-001</p>
+          </div>
+        </div>
+        <button type="button" class="btn btn-outline btn-icon" id="btn-close-detail-req-modal" onclick="if(window.closeDetailRequisitionModal) window.closeDetailRequisitionModal();" style="color: white; border-color: rgba(255,255,255,0.4);">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px 20px;">
+        <!-- INFO BOX -->
+        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin-bottom: 16px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 13.5px;">
+            <div>Khoa / Phòng đề xuất: <strong id="req-detail-dept" style="color: var(--primary-dark); font-size: 14px;">---</strong></div>
+            <div>Người đề xuất: <strong id="req-detail-requester">---</strong></div>
+            <div>Ngày gửi đề xuất: <strong id="req-detail-date">---</strong></div>
+            <div>Kho cấp phát: <strong id="req-detail-warehouse">---</strong></div>
+            <div style="grid-column: 1 / -1;">Mục đích / Lý do: <span id="req-detail-reason" style="font-style: italic; color: var(--text-main);">---</span></div>
+            <div>Trạng thái: <span id="req-detail-status-badge">---</span></div>
+            <div id="req-detail-approved-info" style="display: none; color: #059669; font-weight: 600;"></div>
+          </div>
+        </div>
+
+        <!-- ITEMS TABLE -->
+        <div class="table-section-header" style="margin-bottom: 8px;">
+          <h4 style="margin: 0;">Danh Sách Mặt Hàng Yêu Cầu Cấp Phát</h4>
+        </div>
+
+        <div class="table-responsive" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+          <table class="data-table" id="table-req-detail-items" style="table-layout: fixed; width: 100%; min-width: 750px;">
+            <thead>
+              <tr style="position: sticky; top: 0; background: var(--bg-alt); z-index: 1;">
+                <th style="width: 6%; text-align: center;">STT</th>
+                <th style="width: 14%;">Mã Hàng</th>
+                <th style="width: 34%;">Tên Mặt Hàng / Vật Tư</th>
+                <th style="width: 10%; text-align: center;">ĐVT</th>
+                <th style="width: 14%; text-align: center;">Tồn Khả Dụng</th>
+                <th style="width: 10%; text-align: center;">Số Lượng Xin</th>
+                <th style="width: 12%;">Ghi Chú</th>
+              </tr>
+            </thead>
+            <tbody id="req-detail-items-tbody">
+              <!-- Dynamic rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <button type="button" class="btn btn-outline" id="btn-print-requisition-a4" style="color: #0369a1; border-color: #7dd3fc; font-weight: 600;">
+            🖨️ In Phiếu Đề Xuất A4
+          </button>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="req-detail-action-buttons">
+          <button type="button" class="btn btn-danger" id="btn-reject-requisition" style="font-weight: 600;">
+            ❌ Từ Chối Đề Xuất
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-approve-requisition" style="background: linear-gradient(135deg, #059669 0%, #0284c7 100%); border: none; font-weight: 700; padding: 10px 20px;">
+            ✅ PHÊ DUYỆT & TỰ ĐỘNG XUẤT KHO
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
