@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hướng Dẫn Đăng Ký Đề Xuất Lãnh Vật Tư & VPP - Trung Tâm Pháp Y TPHCM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-light: #f0fdfa;
+      --primary-border: #99f6e4;
+      --primary-dark: #115e59;
+      --accent: #0284c7;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --bg-page: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --warning-bg: #fffbeb;
+      --warning-border: #fef3c7;
+      --warning-text: #b45309;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 30px 15px;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    /* Top banner */
+    .header-banner {
+      background: linear-gradient(135deg, #0d9488 0%, #0f766e 50%, #115e59 100%);
+      color: white;
+      padding: 36px 32px 30px;
+      text-align: center;
+      position: relative;
+    }
+
+    .org-subtitle {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+
+    .doc-title {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.3;
+      margin-bottom: 12px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .doc-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(8px);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    /* Action bar */
+    .action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f1f5f9;
+      padding: 12px 32px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .btn-print {
+      background: white;
+      border: 1px solid #cbd5e1;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-print:hover {
+      background: #f8fafc;
+      border-color: #94a3b8;
+    }
+
+    /* Content Area */
+    .content {
+      padding: 32px;
+    }
+
+    /* Important note callout */
+    .callout-box {
+      background: var(--primary-light);
+      border: 1.5px solid var(--primary-border);
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 28px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .callout-icon {
+      font-size: 26px;
+      line-height: 1;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      color: var(--primary-dark);
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .callout-text {
+      font-size: 14px;
+      color: #334155;
+      line-height: 1.5;
+    }
+
+    .link-highlight {
+      font-family: 'JetBrains Mono', monospace;
+      background: #ccfbf1;
+      color: #0f766e;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      text-decoration: none;
+      border: 1px solid #99f6e4;
+      word-break: break-all;
+    }
+
+    .link-highlight:hover {
+      text-decoration: underline;
+    }
+
+    /* Step Card */
+    .step-card {
+      margin-bottom: 36px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #ffffff;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+
+    .step-header {
+      background: #f8fafc;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      background: var(--primary);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .step-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .step-body {
+      padding: 20px 24px;
+    }
+
+    .step-body p {
+      margin-bottom: 14px;
+      font-size: 14.5px;
+      color: #334155;
+    }
+
+    .step-body ul {
+      margin-left: 20px;
+      margin-bottom: 16px;
+      color: #334155;
+      font-size: 14px;
+    }
+
+    .step-body li {
+      margin-bottom: 8px;
+    }
+
+    .highlight-badge {
+      display: inline-block;
+      background: #f1f5f9;
+      color: #0f172a;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      border: 1px solid #cbd5e1;
+      font-size: 13.5px;
+    }
+
+    /* Image Wrapper */
+    .image-container {
+      margin: 16px 0 8px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1.5px solid #cbd5e1;
+      background: #0f172a;
+      text-align: center;
+    }
+
+    .image-container img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .image-caption {
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      padding: 8px 12px;
+      font-size: 12.5px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* Important Alert within step */
+    .tip-box {
+      background: var(--warning-bg);
+      border-left: 4px solid #f59e0b;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin-top: 14px;
+      font-size: 13.5px;
+      color: var(--warning-text);
+    }
+
+    /* Workflow Summary Table */
+    .summary-section {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 24px;
+    }
+
+    .summary-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .flow-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .flow-box {
+      background: white;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .flow-box-header {
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 32px;
+      background: #f8fafc;
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    /* Print styles */
+    @media print {
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      body {
+        background: white;
+        padding: 0;
+      }
+      .container {
+        box-shadow: none;
+        border: none;
+        max-width: 100%;
+        border-radius: 0;
+      }
+      .action-bar {
+        display: none !important;
+      }
+      .step-card {
+        page-break-inside: avoid;
+        margin-bottom: 24px;
+      }
+      .header-banner {
+        padding: 24px 20px;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header Banner -->
+    <header class="header-banner">
+      <div class="org-subtitle">SỞ Y TẾ TP. HỒ CHÍ MINH • TRUNG TÂM PHÁP Y THÀNH PHỐ</div>
+      <h1 class="doc-title">HƯỚNG DẪN NHANH ĐĂNG KÝ ĐỀ XUẤT LÃNH VẬT TƯ & VĂN PHÒNG PHẨM</h1>
+      <div class="doc-badge">
+        <span>📋 Hướng dẫn dành cho Cán bộ, Bác sĩ & Nhân viên các Khoa / Phòng</span>
+      </div>
+    </header>
+
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <div>📍 <strong>Hệ thống quản lý kho:</strong> ForensicStore Pro</div>
+      <button class="btn-print" onclick="window.print()">
+        🖨️ In Hướng Dẫn / Lưu PDF (Ctrl + P)
+      </button>
+    </div>
+
+    <!-- Main Content -->
+    <main class="content">
+
+      <!-- Important Notice -->
+      <div class="callout-box">
+        <div class="callout-icon">💡</div>
+        <div>
+          <div class="callout-title">ĐIỂM TIỆN LỢI ĐẶC BIỆT CỦA HỆ THỐNG:</div>
+          <div class="callout-text">
+            • <strong>KHÔNG CẦN NHẬP MẬT KHẨU CỦA THỦ KHO!</strong> Cán bộ các khoa phòng chỉ cần mở trang web là có nút đăng ký trực tiếp.<br>
+            • <strong>TRUY CẬP ĐƯỢC TRÊN MỌI THIẾT BỊ:</strong> Máy tính bàn khoa phòng, Laptop hoặc Điện thoại thông minh.<br>
+            • <strong>ĐỊA CHỈ TRUY CẬP TRỰC TUYẾN:</strong> 
+            <a href="https://app-nhap-kho-uozl.vercel.app" target="_blank" class="link-highlight">https://app-nhap-kho-uozl.vercel.app</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- BƯỚC 1 -->
+      <section class="step-card">
+        <div class="step-header">
+          <div class="step-number">1</div>
+          <h2 class="step-title">Bước 1: Mở trang web và chọn nút "Đăng Ký Lãnh Vật Tư & VPP"</h2>
+        </div>
+        <div class="step-body">
+          <p>
+            1. Dùng trình duyệt (Chrome, Cốc Cốc, Edge, Safari...) truy cập vào địa chỉ: 
+            <a href="https://app-nhap-kho-uozl.vercel.app" target="_blank" class="link-highlight">https://app-nhap-kho-uozl.vercel.app</a>
+          </p>
+          <p>
+            2. Tại màn hình khóa, <strong>BỎ QUA Ô NHẬP MẬT KHẨU</strong>, bạn chỉ cần nhấp vào nút màu xanh ngọc:
+            <span class="highlight-badge">📝 Khoa / Phòng Đăng Ký Lãnh Vật Tư & VPP</span> (nằm ngay phía dưới nút mở khóa).
+          </p>
+
+          <div class="image-container">
+            <img src="images/buoc-1-man-hinh-dang-nhap.png" alt="Màn hình đăng nhập hệ thống">
+            <div class="image-caption">Hình 1: Màn hình chính – Nhấp ngay vào nút màu xanh ngọc ở dưới cùng để mở phiếu đề xuất</div>
+          </div>
+
+          <div class="image-container" style="max-width: 650px; margin: 12px auto;">
+            <img src="images/buoc-1-nut-dang-ky.png" alt="Nút bấm đăng ký lãnh">
+            <div class="image-caption">Hình 2: Vị trí nút bấm dành riêng cho các Khoa / Phòng (Không cần mật khẩu)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- BƯỚC 2 -->
+      <section class="step-card">
+        <div class="step-header">
+          <div class="step-number">2</div>
+          <h2 class="step-title">Bước 2: Điền thông tin Khoa / Phòng & Người đề xuất</h2>
+        </div>
+        <div class="step-body">
+          <p>Cửa sổ <strong>"Phiếu Đăng Ký Đề Xuất Lãnh Vật Tư & Văn Phòng Phẩm"</strong> sẽ hiện lên. Bạn vui lòng điền các thông tin hành chính:</p>
+          
+          <ul>
+            <li><strong>Chọn Khoa / Phòng đề xuất:</strong> Chọn đúng tên đơn vị của mình (ví dụ: <em>Khoa Giám định, Khoa Xét nghiệm ADN, Khoa Hóa pháp, Khoa Giải phẫu bệnh, Phòng TC-HC-QT, Phòng KH-TC...</em>).</li>
+            <li><strong>Họ & Tên Người Đề Xuất:</strong> Nhập họ tên cán bộ trực tiếp xin lãnh (để thủ kho liên hệ bàn giao).</li>
+            <li><strong>Ngày Đề Xuất:</strong> Mặc định hệ thống tự chọn ngày hiện tại.</li>
+            <li><strong>Lý Do / Mục Đích Sử Dụng:</strong> Ghi vắn tắt mục đích (ví dụ: <em>Phục vụ ca phẫu nghiệm tử thi, giám định nồng độ cồn Quý 4, in hồ sơ giám định thường quy...</em>).</li>
+          </ul>
+
+          <div class="image-container">
+            <img src="images/buoc-2-phieu-de-xuat.png" alt="Form Phiếu Đăng Ký Đề Xuất Lãnh Vật Tư">
+            <div class="image-caption">Hình 3: Giao diện Phiếu Đăng Ký Đề Xuất Lãnh Vật Tư & Văn Phòng Phẩm</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- BƯỚC 3 -->
+      <section class="step-card">
+        <div class="step-header">
+          <div class="step-number">3</div>
+          <h2 class="step-title">Bước 3: Chọn danh sách mặt hàng và số lượng cần lãnh</h2>
+        </div>
+        <div class="step-body">
+          <p>Hệ thống được thiết kế thông minh để tránh việc khoa phòng xin nhầm các món đã hết tồn:</p>
+
+          <ul>
+            <li>
+              <strong>Mặt hàng xin lãnh:</strong> Bấm vào ô danh sách để tìm mặt hàng. Hệ thống <strong>chỉ hiển thị những mặt hàng ĐANG CÒN TRONG KHO</strong> kèm theo số lượng tồn khả dụng (ví dụ: còn 10 hộp, còn 5 chai...).
+            </li>
+            <li><strong>Số lượng xin:</strong> Nhập số lượng thực tế khoa phòng cần sử dụng.</li>
+            <li><strong>Ghi chú:</strong> Điền yêu cầu cụ thể nếu có (VD: <em>Lấy loại nắp đỏ, chai 2.5L...</em>).</li>
+            <li><strong>Thêm nhiều mặt hàng:</strong> Bấm nút <span class="highlight-badge" style="background:#0284c7; color:white; border-color:#0284c7;">+ Thêm Mặt Hàng</span> nếu cần lãnh thêm các vật tư khác trong cùng một đợt.</li>
+          </ul>
+
+          <div class="tip-box">
+            ⚡ <strong>Mẹo nhỏ:</strong> Nếu bấm nhầm một dòng hàng không cần nữa, bạn chỉ cần bấm nút dấu nhân màu đỏ <strong>[ ✕ ]</strong> ở cột ngoài cùng bên phải để xóa dòng đó.
+          </div>
+        </div>
+      </section>
+
+      <!-- BƯỚC 4 -->
+      <section class="step-card">
+        <div class="step-header">
+          <div class="step-number">4</div>
+          <h2 class="step-title">Bước 4: Bấm gửi và hoàn tất đề xuất</h2>
+        </div>
+        <div class="step-body">
+          <p>
+            1. Nhìn xuống góc dưới bên trái để kiểm tra lại <strong>Tổng Mặt Hàng Xin Lãnh</strong> và <strong>Tổng Số Lượng</strong>.
+          </p>
+          <p>
+            2. Nhấp vào nút màu xanh: <span class="highlight-badge" style="background:#0d9488; color:white; border-color:#0d9488; font-weight:700;">🗃️ GỬI PHIẾU ĐỀ XUẤT LÃNH HÀNG</span>.
+          </p>
+          <p>
+            3. Hệ thống sẽ thông báo: <strong>"Đã gửi phiếu đề xuất thành công!"</strong>. Phiếu sẽ tự động được gửi thẳng về hệ thống của Thủ kho (Cử nhân Lê Văn Quý) để phê duyệt và chuẩn bị hàng.
+          </p>
+
+          <div class="callout-box" style="margin-top: 16px; margin-bottom: 0;">
+            <div class="callout-icon">✅</div>
+            <div>
+              <div class="callout-title" style="color:#0f766e;">QUY TRÌNH TIẾP NHẬN & CẤP PHÁT TẠI KHO:</div>
+              <div class="callout-text">
+                Sau khi Khoa/Phòng gửi phiếu trực tuyến, Thủ kho sẽ kiểm tra tình trạng kho, in Phiếu Xuất Kho theo mẫu chuẩn A4 và chuẩn bị sẵn vật tư/hóa chất để bàn giao cho cán bộ đại diện khoa phòng ký nhận.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Summary Workflow -->
+      <div class="summary-section">
+        <div class="summary-title">
+          <span>🔄 TÓM TẮT QUY TRÌNH 4 BƯỚC NHANH:</span>
+        </div>
+        <div class="flow-steps">
+          <div class="flow-box">
+            <div class="flow-box-header">1. TRUY CẬP</div>
+            Mở link Vercel và bấm nút <em>"Khoa/Phòng Đăng Ký Lãnh..."</em> (Không cần mật khẩu).
+          </div>
+          <div class="flow-box">
+            <div class="flow-box-header">2. CHỌN KHOA</div>
+            Chọn Khoa/Phòng và điền Họ tên người đề xuất, lý do sử dụng.
+          </div>
+          <div class="flow-box">
+            <div class="flow-box-header">3. CHỌN HÀNG</div>
+            Chọn mặt hàng có sẵn tồn kho và nhập số lượng cần lãnh.
+          </div>
+          <div class="flow-box">
+            <div class="flow-box-header">4. GỬI PHIẾU</div>
+            Bấm <em>"Gửi Phiếu Đề Xuất"</em>. Thủ kho nhận thông tin và soạn hàng.
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <strong>TRUNG TÂM PHÁP Y THÀNH PHỐ HỒ CHÍ MINH</strong><br>
+      Bộ phận Quản lý Kho Vật tư & Kho Hóa chất • Cử nhân: <strong>Lê Văn Quý</strong><br>
+      <em>Hệ thống cơ sở dữ liệu kho đồng bộ Supabase Cloud • Tiêu chuẩn quản lý vật tư Bộ Y Tế</em>
+    </footer>
+  </div>
+
+</body>
+</html>

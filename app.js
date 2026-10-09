@@ -69,7 +69,7 @@
       storekeeper: 'Cử nhân Lê Văn Quý',
       security: {
         enabled: true,
-        passwordHash: '123456'
+        passwordHash: 'trungtamphapytphcm'
       },
       lastBackup: null,
       theme: 'light',
@@ -1935,6 +1935,10 @@ if (typeof module !== "undefined" && module.exports) {
             }
             if (this.data.settings.headOfAdmin === 'ThS. Trần Thị Kim Oanh' || !this.data.settings.headOfAdmin) {
               this.data.settings.headOfAdmin = '';
+            }
+            // Tự động chuyển đổi mật khẩu cũ 123456 sang mật khẩu chính thức trungtamphapytphcm
+            if (this.data.settings.security && (this.data.settings.security.passwordHash === '123456' || !this.data.settings.security.passwordHash)) {
+              this.data.settings.security.passwordHash = 'trungtamphapytphcm';
             }
             this.save();
           }
@@ -7714,16 +7718,32 @@ if (typeof module !== "undefined" && module.exports) {
     }
   }
 
+  const LOCKOUT_KEY = 'forensic_lockout_until_time';
+  const ATTEMPTS_KEY = 'forensic_failed_attempts_count';
+
   function getSystemPassword() {
     const settings = db.getData().settings;
     if (settings && settings.security && settings.security.passwordHash) {
+      if (settings.security.passwordHash === '123456') {
+        settings.security.passwordHash = 'trungtamphapytphcm';
+        db.save();
+        return 'trungtamphapytphcm';
+      }
       return settings.security.passwordHash;
     }
-    return '123456';
+    return 'trungtamphapytphcm';
   }
 
   function verifyPassword(enteredPassword) {
+    if (!enteredPassword) return false;
+    // Chặn tuyệt đối mật khẩu mặc định cũ 123456
+    if (enteredPassword === '123456') {
+      return false;
+    }
     const currentPassword = getSystemPassword();
+    if (!currentPassword) {
+      return false;
+    }
     return enteredPassword === currentPassword;
   }
 
@@ -7754,29 +7774,88 @@ if (typeof module !== "undefined" && module.exports) {
       };
     }
 
-    // Login Form Submit
+    // Kiểm tra và hiển thị trạng thái khóa tạm thời nếu nhập sai nhiều lần
+    function checkAndApplyLockout() {
+      const lockoutUntil = parseInt(sessionStorage.getItem(LOCKOUT_KEY) || '0', 10);
+      const now = Date.now();
+      const btnSubmit = $('#btn-unlock-submit');
+      const errMsg = $('#lock-error-msg');
+
+      if (lockoutUntil > now) {
+        const remainingSec = Math.ceil((lockoutUntil - now) / 1000);
+        if (pwdInput) pwdInput.disabled = true;
+        if (btnSubmit) {
+          btnSubmit.disabled = true;
+          btnSubmit.textContent = `⏳ TẠM KHÓA (${remainingSec}s)`;
+        }
+        if (errMsg) {
+          errMsg.style.display = 'block';
+          errMsg.textContent = `⚠️ Đã nhập sai quá 5 lần liên tiếp! Hệ thống tạm khóa trong ${remainingSec} giây để bảo vệ an toàn.`;
+        }
+        setTimeout(checkAndApplyLockout, 1000);
+        return true;
+      } else {
+        if (pwdInput) pwdInput.disabled = false;
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.textContent = '🔓 MỞ KHÓA TRUY CẬP';
+        }
+        return false;
+      }
+    }
+
+    checkAndApplyLockout();
+
+    // Login Form Submit với cơ chế bảo mật cao cấp
     const form = $('#form-login-lock');
     if (form) {
       form.onsubmit = (e) => {
         e.preventDefault();
+        if (checkAndApplyLockout()) return;
+
         const pwd = pwdInput ? pwdInput.value.trim() : '';
         const rememberMe = $('#lock-remember-me') ? $('#lock-remember-me').checked : true;
         const errMsg = $('#lock-error-msg');
 
+        // Bẫy chặn nếu cố tình nhập mật khẩu mặc định 123456
+        if (pwd === '123456') {
+          if (errMsg) {
+            errMsg.style.display = 'block';
+            errMsg.textContent = '🚫 Mật khẩu mặc định 123456 đã bị hủy bỏ vì lý do an toàn! Vui lòng nhập đúng mật khẩu quản trị mới.';
+          }
+          if (pwdInput) {
+            pwdInput.value = '';
+            pwdInput.focus();
+          }
+          return;
+        }
+
         if (verifyPassword(pwd)) {
+          // Xóa đếm số lần nhập sai khi đã đúng
+          sessionStorage.removeItem(ATTEMPTS_KEY);
+          sessionStorage.removeItem(LOCKOUT_KEY);
           setAuthenticated(rememberMe);
           unlockAppScreen();
           if (errMsg) errMsg.style.display = 'none';
           showToast('🔓 Xác thực thành công! Chào mừng Cử nhân Lê Văn Quý.', 'success');
           renderCurrentView();
         } else {
-          if (errMsg) {
-            errMsg.style.display = 'block';
-            errMsg.textContent = '⚠️ Mật khẩu không chính xác. Vui lòng kiểm tra lại!';
-          }
-          if (pwdInput) {
-            pwdInput.value = '';
-            pwdInput.focus();
+          // Tăng số lần thử sai
+          let attempts = parseInt(sessionStorage.getItem(ATTEMPTS_KEY) || '0', 10) + 1;
+          sessionStorage.setItem(ATTEMPTS_KEY, attempts.toString());
+
+          if (attempts >= 5) {
+            sessionStorage.setItem(LOCKOUT_KEY, (Date.now() + 60000).toString());
+            checkAndApplyLockout();
+          } else {
+            if (errMsg) {
+              errMsg.style.display = 'block';
+              errMsg.textContent = `⚠️ Mật khẩu không chính xác. Bạn còn ${5 - attempts} lần thử lại!`;
+            }
+            if (pwdInput) {
+              pwdInput.value = '';
+              pwdInput.focus();
+            }
           }
         }
       };
