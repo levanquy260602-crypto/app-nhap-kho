@@ -69,7 +69,7 @@
       storekeeper: 'Cử nhân Lê Văn Quý',
       security: {
         enabled: true,
-        passwordHash: 'trungtamphapytphcm'
+        passwordHash: 'a761f7346e555e6ec2df75ffce3ea1125696d7cadbb4d7c03a837794fd1f40e9'
       },
       lastBackup: null,
       theme: 'light',
@@ -1936,9 +1936,9 @@ if (typeof module !== "undefined" && module.exports) {
             if (this.data.settings.headOfAdmin === 'ThS. Trần Thị Kim Oanh' || !this.data.settings.headOfAdmin) {
               this.data.settings.headOfAdmin = '';
             }
-            // Tự động chuyển đổi mật khẩu cũ 123456 sang mật khẩu chính thức trungtamphapytphcm
-            if (this.data.settings.security && (this.data.settings.security.passwordHash === '123456' || !this.data.settings.security.passwordHash)) {
-              this.data.settings.security.passwordHash = 'trungtamphapytphcm';
+            // Tự động chuyển đổi mật khẩu cũ sang chuẩn băm SHA-256 an toàn cao cấp
+            if (this.data.settings.security && (!this.data.settings.security.passwordHash || this.data.settings.security.passwordHash.length !== 64)) {
+              this.data.settings.security.passwordHash = 'a761f7346e555e6ec2df75ffce3ea1125696d7cadbb4d7c03a837794fd1f40e9';
             }
             this.save();
           }
@@ -7720,31 +7720,53 @@ if (typeof module !== "undefined" && module.exports) {
 
   const LOCKOUT_KEY = 'forensic_lockout_until_time';
   const ATTEMPTS_KEY = 'forensic_failed_attempts_count';
+  const SECURITY_SALT = 'FORENSIC_STORE_PRO_SECURE_SALT_2026';
+  // Chuỗi băm mật mã học một chiều SHA-256 an toàn chuẩn quốc tế (Salted SHA-256)
+  const MASTER_HASH = 'a761f7346e555e6ec2df75ffce3ea1125696d7cadbb4d7c03a837794fd1f40e9';
 
-  function getSystemPassword() {
+  async function hashPassword(plainText) {
+    if (!plainText) return '';
+    try {
+      if (window.crypto && window.crypto.subtle) {
+        const msgBuffer = new TextEncoder().encode(SECURITY_SALT + plainText);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
+        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+    } catch (e) {
+      console.warn('Crypto Subtle error:', e);
+    }
+    // Fallback nếu không có SubtleCrypto
+    let hash = 0;
+    const str = SECURITY_SALT + plainText;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(16);
+  }
+
+  function getSystemPasswordHash() {
     const settings = db.getData().settings;
     if (settings && settings.security && settings.security.passwordHash) {
-      if (settings.security.passwordHash === '123456') {
-        settings.security.passwordHash = 'trungtamphapytphcm';
+      if (!settings.security.passwordHash || settings.security.passwordHash.length !== 64) {
+        settings.security.passwordHash = MASTER_HASH;
         db.save();
-        return 'trungtamphapytphcm';
+        return MASTER_HASH;
       }
       return settings.security.passwordHash;
     }
-    return 'trungtamphapytphcm';
+    return MASTER_HASH;
   }
 
-  function verifyPassword(enteredPassword) {
+  async function verifyPassword(enteredPassword) {
     if (!enteredPassword) return false;
     // Chặn tuyệt đối mật khẩu mặc định cũ 123456
     if (enteredPassword === '123456') {
       return false;
     }
-    const currentPassword = getSystemPassword();
-    if (!currentPassword) {
-      return false;
-    }
-    return enteredPassword === currentPassword;
+    const enteredHash = await hashPassword(enteredPassword);
+    const systemHash = getSystemPasswordHash();
+    return enteredHash === systemHash;
   }
 
   function initLockScreen() {
@@ -7758,6 +7780,34 @@ if (typeof module !== "undefined" && module.exports) {
       const pwdInput = $('#lock-password-input');
       if (pwdInput) setTimeout(() => pwdInput.focus(), 200);
     }
+
+    // Chống mở F12 & phím tắt xem nguồn (DevTools Inspector)
+    window.addEventListener('keydown', (e) => {
+      // Phím F12
+      if (e.key === 'F12' || e.keyCode === 123) {
+        e.preventDefault();
+        return false;
+      }
+      // Ctrl + Shift + I, Ctrl + Shift + J, Ctrl + Shift + C
+      if (e.ctrlKey && e.shiftKey && ['I', 'i', 'J', 'j', 'C', 'c'].includes(e.key)) {
+        e.preventDefault();
+        return false;
+      }
+      // Ctrl + U (Xem mã nguồn trang)
+      if (e.ctrlKey && (e.key === 'u' || e.key === 'U')) {
+        e.preventDefault();
+        return false;
+      }
+    });
+
+    // Chặn chuột phải trên màn hình khóa
+    window.addEventListener('contextmenu', (e) => {
+      const lockOverlay = $('#lock-screen-overlay');
+      if (lockOverlay && lockOverlay.style.display !== 'none') {
+        e.preventDefault();
+        return false;
+      }
+    });
 
     // Toggle show/hide password
     const btnToggle = $('#btn-toggle-lock-pwd');
@@ -7806,10 +7856,10 @@ if (typeof module !== "undefined" && module.exports) {
 
     checkAndApplyLockout();
 
-    // Login Form Submit với cơ chế bảo mật cao cấp
+    // Login Form Submit với cơ chế băm mật mã học và chống dò
     const form = $('#form-login-lock');
     if (form) {
-      form.onsubmit = (e) => {
+      form.onsubmit = async (e) => {
         e.preventDefault();
         if (checkAndApplyLockout()) return;
 
@@ -7830,7 +7880,9 @@ if (typeof module !== "undefined" && module.exports) {
           return;
         }
 
-        if (verifyPassword(pwd)) {
+        const isValid = await verifyPassword(pwd);
+
+        if (isValid) {
           // Xóa đếm số lần nhập sai khi đã đúng
           sessionStorage.removeItem(ATTEMPTS_KEY);
           sessionStorage.removeItem(LOCKOUT_KEY);
@@ -7873,16 +7925,17 @@ if (typeof module !== "undefined" && module.exports) {
       btnLockNow.onclick = () => lockAppScreen(true);
     }
 
-    // Change Password Form
+    // Change Password Form - Băm mật khẩu mới bảo mật
     const formChangePwd = $('#form-change-password');
     if (formChangePwd) {
-      formChangePwd.onsubmit = (e) => {
+      formChangePwd.onsubmit = async (e) => {
         e.preventDefault();
         const currentPwd = $('#input-current-password').value.trim();
         const newPwd = $('#input-new-password').value.trim();
         const confirmNewPwd = $('#input-confirm-new-password').value.trim();
 
-        if (!verifyPassword(currentPwd)) {
+        const isCurrentValid = await verifyPassword(currentPwd);
+        if (!isCurrentValid) {
           showToast('❌ Mật khẩu hiện tại không chính xác!', 'danger');
           $('#input-current-password').focus();
           return;
@@ -7900,15 +7953,16 @@ if (typeof module !== "undefined" && module.exports) {
           return;
         }
 
-        // Save new password
+        // Băm mật khẩu mới bằng SHA-256 có muối trước khi lưu vào CSDL
+        const hashedNewPwd = await hashPassword(newPwd);
         const data = db.getData();
         if (!data.settings.security) data.settings.security = {};
-        data.settings.security.passwordHash = newPwd;
+        data.settings.security.passwordHash = hashedNewPwd;
         db.save();
         db.triggerCloudAutoSync();
 
         formChangePwd.reset();
-        showToast('🎉 Đã cập nhật mật khẩu mới thành công! Mật khẩu mới đã được đồng bộ lên Đám mây.', 'success');
+        showToast('🎉 Đã cập nhật mật khẩu mới thành công! Mật khẩu được mã hóa an toàn.', 'success');
       };
     }
   }
