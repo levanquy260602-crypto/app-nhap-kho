@@ -19,8 +19,256 @@
   <!-- CSS Stylesheet (Tự động nạp cả khi ở trong thư mục css/ hoặc để cùng cấp) -->
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="styles.css">
+
+  <!-- Critical Security Lock Screen Styles (Bảo đảm hiển thị tuyệt đối không phụ thuộc file CSS ngoài) -->
+  <style id="critical-lock-screen-css">
+    /* 1. MẶC ĐỊNH KHÓA: Ẩn hoàn toàn bảng điều khiển kho khi chưa xác thực */
+    body.app-locked .app-container {
+      display: none !important;
+    }
+    html.is-unlocked body.app-locked .app-container {
+      display: flex !important;
+    }
+    html.is-unlocked #lock-screen-overlay {
+      display: none !important;
+    }
+
+    /* 2. OVERLAY PHỦ TOÀN BỘ MÀN HÌNH NỀN TỐI CHUYÊN NGHIỆP */
+    #lock-screen-overlay,
+    .lock-screen-overlay {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      background: radial-gradient(circle at 50% 30%, #0f172a 0%, #020617 100%) !important;
+      z-index: 999999 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 20px !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+      box-sizing: border-box !important;
+      overflow-y: auto !important;
+    }
+
+    /* 3. THẺ KHÓA (CARD) TRẮNG BO TRÒN SANG TRỌNG */
+    .lock-card {
+      background: #ffffff !important;
+      border-radius: 16px !important;
+      width: 100% !important;
+      max-width: 440px !important;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+      overflow: hidden !important;
+      position: relative !important;
+      box-sizing: border-box !important;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      margin: auto !important;
+      animation: lockCardPop 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    @keyframes lockCardPop {
+      0% { opacity: 0; transform: scale(0.95); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* 4. TIÊU ĐỀ GRADIENT XANH NGỌC - XANH DƯƠNG */
+    .lock-card-header {
+      background: linear-gradient(135deg, #0f766e 0%, #0369a1 100%) !important;
+      color: #ffffff !important;
+      padding: 28px 24px 22px !important;
+      text-align: center !important;
+      position: relative !important;
+    }
+
+    .lock-logo-icon {
+      width: 56px !important;
+      height: 56px !important;
+      background: rgba(255, 255, 255, 0.2) !important;
+      border: 1.5px solid rgba(255, 255, 255, 0.45) !important;
+      border-radius: 14px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin: 0 auto 12px !important;
+      color: #ffffff !important;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important;
+    }
+
+    .lock-logo-icon svg {
+      stroke: #ffffff !important;
+    }
+
+    .lock-title {
+      font-size: 20px !important;
+      font-weight: 700 !important;
+      margin: 0 0 4px !important;
+      letter-spacing: -0.3px !important;
+      color: #ffffff !important;
+    }
+
+    .lock-subtitle {
+      font-size: 12.5px !important;
+      margin: 0 !important;
+      opacity: 0.92 !important;
+      font-weight: 500 !important;
+      letter-spacing: 0.2px !important;
+      color: #e0f2fe !important;
+    }
+
+    /* 5. NỘI DUNG FORM ĐĂNG NHẬP */
+    .lock-card-body {
+      padding: 24px !important;
+      background: #ffffff !important;
+      box-sizing: border-box !important;
+    }
+
+    .lock-badge {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 6px !important;
+      background: #fef3c7 !important;
+      color: #92400e !important;
+      padding: 5px 12px !important;
+      border-radius: 20px !important;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+      margin-bottom: 12px !important;
+      border: 1px solid #fde68a !important;
+    }
+
+    .lock-instruction {
+      font-size: 13.5px !important;
+      color: #334155 !important;
+      margin-bottom: 16px !important;
+      line-height: 1.5 !important;
+    }
+
+    .lock-input-group {
+      position: relative !important;
+      margin-bottom: 12px !important;
+      display: flex !important;
+      align-items: center !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+
+    .lock-input {
+      width: 100% !important;
+      box-sizing: border-box !important;
+      padding: 12px 42px 12px 14px !important;
+      font-size: 16px !important;
+      border: 1.5px solid #cbd5e1 !important;
+      border-radius: 10px !important;
+      background: #f8fafc !important;
+      outline: none !important;
+      font-family: inherit !important;
+      color: #0f172a !important;
+      transition: border-color 0.2s, box-shadow 0.2s !important;
+    }
+    .lock-input:focus {
+      border-color: #0d9488 !important;
+      background: #ffffff !important;
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15) !important;
+    }
+
+    .btn-toggle-pwd {
+      position: absolute !important;
+      right: 12px !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      background: none !important;
+      border: none !important;
+      cursor: pointer !important;
+      font-size: 18px !important;
+      opacity: 0.65 !important;
+      padding: 4px !important;
+      line-height: 1 !important;
+    }
+    .btn-toggle-pwd:hover {
+      opacity: 1 !important;
+    }
+
+    .lock-error {
+      background: #fee2e2 !important;
+      border: 1px solid #fecaca !important;
+      color: #991b1b !important;
+      padding: 10px 14px !important;
+      border-radius: 8px !important;
+      font-size: 12.5px !important;
+      font-weight: 600 !important;
+      margin-bottom: 14px !important;
+      line-height: 1.4 !important;
+    }
+
+    .lock-remember-label {
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      font-size: 12.5px !important;
+      color: #64748b !important;
+      cursor: pointer !important;
+      margin-bottom: 16px !important;
+      user-select: none !important;
+    }
+    .lock-remember-label input {
+      width: 16px !important;
+      height: 16px !important;
+      accent-color: #0d9488 !important;
+      cursor: pointer !important;
+    }
+
+    .lock-btn-submit {
+      width: 100% !important;
+      padding: 12px !important;
+      font-size: 14.5px !important;
+      font-weight: 700 !important;
+      color: #ffffff !important;
+      border-radius: 10px !important;
+      background: linear-gradient(135deg, #0f766e 0%, #0284c7 100%) !important;
+      border: none !important;
+      box-shadow: 0 4px 12px rgba(15, 118, 110, 0.35) !important;
+      cursor: pointer !important;
+      transition: transform 0.15s, filter 0.15s !important;
+    }
+    .lock-btn-submit:hover {
+      filter: brightness(1.08) !important;
+      transform: translateY(-1px) !important;
+    }
+
+    .lock-card-footer {
+      background: #f8fafc !important;
+      padding: 12px 20px !important;
+      border-top: 1px solid #f1f5f9 !important;
+      text-align: center !important;
+      font-size: 11px !important;
+      color: #64748b !important;
+    }
+  </style>
+
+  <!-- Pre-Auth check: Tránh chớp nháy giao diện khi thủ kho đã đăng nhập trước đó -->
+  <script>
+    (function() {
+      try {
+        var s = sessionStorage.getItem('forensic_store_auth_token');
+        var r = localStorage.getItem('forensic_store_remember_token');
+        if (s === 'authenticated') {
+          document.documentElement.classList.add('is-unlocked');
+        } else if (r) {
+          var p = JSON.parse(atob(r));
+          if (p && p.authenticated && p.expiresAt > Date.now()) {
+            sessionStorage.setItem('forensic_store_auth_token', 'authenticated');
+            document.documentElement.classList.add('is-unlocked');
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
-<body>
+<body class="app-locked">
 
   <!-- 0. LOCK / LOGIN SECURITY SCREEN OVERLAY -->
   <div id="lock-screen-overlay" class="lock-screen-overlay" style="display: flex;">

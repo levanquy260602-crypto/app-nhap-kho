@@ -7693,6 +7693,8 @@ if (typeof module !== "undefined" && module.exports) {
   }
 
   function lockAppScreen(showToastMsg = true) {
+    document.documentElement.classList.remove('is-unlocked');
+    document.body.classList.add('app-locked');
     sessionStorage.removeItem(AUTH_KEY);
     localStorage.removeItem(REMEMBER_KEY);
     const overlay = $('#lock-screen-overlay');
@@ -7712,6 +7714,8 @@ if (typeof module !== "undefined" && module.exports) {
   }
 
   function unlockAppScreen() {
+    document.documentElement.classList.add('is-unlocked');
+    document.body.classList.remove('app-locked');
     const overlay = $('#lock-screen-overlay');
     if (overlay) {
       overlay.style.display = 'none';
@@ -7776,6 +7780,8 @@ if (typeof module !== "undefined" && module.exports) {
     if (isUserAuthenticated()) {
       unlockAppScreen();
     } else {
+      document.documentElement.classList.remove('is-unlocked');
+      document.body.classList.add('app-locked');
       overlay.style.display = 'flex';
       const pwdInput = $('#lock-password-input');
       if (pwdInput) setTimeout(() => pwdInput.focus(), 200);
