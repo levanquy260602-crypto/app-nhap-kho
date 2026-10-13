@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.supabase.in wss://*.supabase.in; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
   <title>ForensicStore Pro - Quản Lý Kho Vật Tư & Kho Văn Phòng Phẩm | Trung Tâm Pháp Y</title>
   
   <!-- Google Fonts: Inter & JetBrains Mono -->
@@ -11,14 +13,16 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   
   <!-- Supabase Cloud SDK (Hỗ trợ đồng bộ đa thiết bị thời gian thực) -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
 
   <!-- SheetJS (XLSX) SDK: Đọc & Xuất File Excel (.xlsx, .xls, .csv) -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 
   <!-- CSS Stylesheet (Tự động nạp cả khi ở trong thư mục css/ hoặc để cùng cấp) -->
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="styles.css">
+  <!-- Giao diện "Công văn" (xóa 2 dòng theme để quay về giao diện cũ) -->
+  <link rel="stylesheet" href="css/theme.css">
 
   <!-- Critical Security Lock Screen Styles (Bảo đảm hiển thị tuyệt đối không phụ thuộc file CSS ngoài) -->
   <style id="critical-lock-screen-css">
@@ -249,24 +253,6 @@
     }
   </style>
 
-  <!-- Pre-Auth check: Tránh chớp nháy giao diện khi thủ kho đã đăng nhập trước đó -->
-  <script>
-    (function() {
-      try {
-        var s = sessionStorage.getItem('forensic_store_auth_token');
-        var r = localStorage.getItem('forensic_store_remember_token');
-        if (s === 'authenticated') {
-          document.documentElement.classList.add('is-unlocked');
-        } else if (r) {
-          var p = JSON.parse(atob(r));
-          if (p && p.authenticated && p.expiresAt > Date.now()) {
-            sessionStorage.setItem('forensic_store_auth_token', 'authenticated');
-            document.documentElement.classList.add('is-unlocked');
-          }
-        }
-      } catch (e) {}
-    })();
-  </script>
 </head>
 <body class="app-locked">
 
@@ -324,7 +310,7 @@
       </div>
 
       <div class="lock-card-footer">
-        <span>Bảo mật dữ liệu đám mây Supabase Cloud | Chuẩn Bộ Y Tế</span>
+        <span>Bảo mật dữ liệu đám mây Supabase Cloud</span>
       </div>
     </div>
   </div>
@@ -1273,32 +1259,18 @@
               </div>
               <div class="card-body" style="display: flex; flex-direction: column; gap: 16px;">
                 <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin: 0;">
-                  Khi kết nối Đám mây Supabase (miễn phí), mọi thao tác lập phiếu, nhập/xuất kho từ máy tính cơ quan, máy ở nhà hoặc điện thoại sẽ được tự động đồng bộ tức thì theo thời gian thực mà không cần copy file thủ công.
+                  Kết nối Đám Mây được cấu hình cố định trong file <code>js/config.js</code>. Mọi máy (máy cơ quan, điện thoại) chỉ cần mở địa chỉ trang web và <strong>đăng nhập tài khoản Thủ kho</strong> là đồng bộ. Khoa / Phòng gửi phiếu đề xuất không cần đăng nhập và không xem được dữ liệu kho.<br>Tài khoản đang đăng nhập: <strong id="settings-admin-email">---</strong>
                 </p>
-
-                <!-- QUICK SYNC PASTE BOX FOR MOBILE & OTHER DEVICES -->
-                <div style="background: #f0fdf4; border: 1.5px dashed #10b981; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px;">
-                  <div style="font-weight: 700; font-size: 13.5px; color: #065f46; display: flex; align-items: center; gap: 6px;">
-                    <span>⚡ KẾT NỐI NHANH 1-CHẠM (Dành Cho Điện Thoại / Máy Mới):</span>
-                  </div>
-                  <div style="font-size: 12px; color: #047857;">
-                    Dán toàn bộ đường link chia sẻ từ máy tính gửi qua Zalo vào ô bên dưới rồi bấm <strong>"Kích Hoạt Ngay"</strong>:
-                  </div>
-                  <div style="display: flex; gap: 8px;">
-                    <input type="text" class="form-control" id="input-quick-sync-token" placeholder="VD: https://app-nhap-kho-uozl.vercel.app/?cloud=..." style="flex: 1; font-size: 13px;">
-                    <button type="button" class="btn btn-primary btn-sm" id="btn-apply-quick-sync" style="white-space: nowrap; padding: 0 18px; font-weight: 700;">🚀 Kích Hoạt Ngay</button>
-                  </div>
-                </div>
 
                 <div class="cloud-config-box">
                   <div class="form-grid" style="gap: 14px;">
                     <div class="form-group">
                       <label class="form-label"><strong>1. Supabase Project URL:</strong></label>
-                      <input type="url" class="form-control font-mono" id="set-supabase-url" placeholder="VD: https://xyzcompany.supabase.co">
+                      <input type="text" class="form-control font-mono" id="set-supabase-url" readonly style="background: #f8fafc;">
                     </div>
                     <div class="form-group">
-                      <label class="form-label"><strong>2. Supabase Anon / Public API Key:</strong></label>
-                      <input type="password" class="form-control font-mono" id="set-supabase-key" placeholder="VD: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+                      <label class="form-label"><strong>2. Supabase Anon / Public API Key (đã ẩn bớt):</strong></label>
+                      <input type="text" class="form-control font-mono" id="set-supabase-key" readonly style="background: #f8fafc;">
                     </div>
                   </div>
 
@@ -1310,10 +1282,7 @@
 
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                       <button type="button" class="btn btn-outline btn-sm" id="btn-test-supabase">
-                        🔌 Kiểm Tra Kết Nối
-                      </button>
-                      <button type="button" class="btn btn-primary btn-sm" id="btn-save-supabase">
-                        💾 Lưu & Bật Đám Mây
+                        🔌 Kiểm Tra Kết Nối & Quyền
                       </button>
                       <button type="button" class="btn btn-secondary btn-sm" id="btn-push-supabase" title="Đẩy toàn bộ dữ liệu máy này lên đám mây">
                         📤 Đẩy Lên Đám Mây (Upload)
@@ -1322,7 +1291,7 @@
                         📥 Kéo Về Máy (Download)
                       </button>
                       <button type="button" class="btn btn-outline btn-sm" id="btn-share-phone-qr" style="border-color: var(--primary); color: var(--primary-dark); font-weight: 700;">
-                        📱 Chia Sẻ Cho Điện Thoại (QR Code)
+                        📱 Mở Trên Điện Thoại
                       </button>
                     </div>
                   </div>
@@ -1334,20 +1303,11 @@
                     📖 Hướng dẫn 3 bước tạo Database Supabase miễn phí (chỉ mất 2 phút)
                   </summary>
                   <div style="margin-top: 12px; font-size: 12.5px; line-height: 1.6; color: var(--text-main);">
-                    <p><strong>Bước 1:</strong> Truy cập <strong><a href="https://supabase.com" target="_blank" style="color: var(--primary); text-decoration: underline;">supabase.com</a></strong> ➡️ Đăng nhập bằng Google hoặc GitHub ➡️ Bấm <strong>"New project"</strong> (Đặt tên ví dụ: <code>kho-phap-y</code>).</p>
-                    <p><strong>Bước 2:</strong> Vào mục <strong>SQL Editor</strong> ở menu bên trái của Supabase, dán đoạn mã sau vào rồi nhấn nút <strong>Run</strong>:</p>
-                    <pre class="cloud-sql-code">-- Tạo bảng lưu trữ cơ sở dữ liệu kho Pháp Y
-CREATE TABLE IF NOT EXISTS public.forensic_inventory (
-  id TEXT PRIMARY KEY,
-  data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Cho phép ứng dụng đọc/ghi dữ liệu
-ALTER TABLE public.forensic_inventory ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read/write" ON public.forensic_inventory
-  FOR ALL USING (true) WITH CHECK (true);</pre>
-                    <p><strong>Bước 3:</strong> Vào mục <strong>Project Settings</strong> ➡️ <strong>API</strong> ➡️ Sao chép <strong>Project URL</strong> và <strong>anon / public key</strong> dán vào 2 ô ở trên, bấm <strong>"Lưu & Bật Đám Mây"</strong> ➡️ Bấm <strong>"Chia Sẻ Cho Điện Thoại (QR Code)"</strong> để quét trên điện thoại là xong!</p>
+                    <p><strong>Bước 1:</strong> Tạo project trên <strong>supabase.com</strong> (nếu chưa có).</p>
+                    <p><strong>Bước 2:</strong> Vào <strong>SQL Editor</strong>, dán toàn bộ nội dung file <code>supabase/security_upgrade.sql</code> (có trong mã nguồn) rồi bấm <strong>Run</strong>. File này khóa dữ liệu kho, chỉ cho tài khoản Thủ kho đọc / ghi, tạo hộp thư phiếu đề xuất và nhật ký thay đổi.</p>
+                    <p><strong>Bước 3:</strong> Vào <strong>Authentication → Sign In / Providers</strong>, tắt <strong>Allow new users to sign up</strong>. Sau đó vào <strong>Authentication → Users → Add user</strong> tạo tài khoản Thủ kho (tích <em>Auto Confirm User</em>), rồi chạy đoạn SQL cấp quyền ở mục 7 cuối file.</p>
+                    <p><strong>Bước 4:</strong> Mở file <code>js/config.js</code>, điền <strong>Project URL</strong> và khóa <strong>anon / public</strong> (tuyệt đối không dùng khóa service_role), đẩy lên GitHub để Vercel cập nhật.</p>
+                    <p style="color: var(--danger);"><strong>Lưu ý:</strong> Link đồng bộ kiểu cũ <code>?cloud=...</code> gửi qua Zalo trước đây không còn tác dụng. Nên xóa các tin nhắn chứa link đó.</p>
                   </div>
                 </details>
               </div>
@@ -2074,7 +2034,7 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
       </div>
       <div class="modal-body" style="padding: 20px; text-align: center;">
         <p style="font-size: 13.5px; color: var(--text-main); margin-bottom: 16px; line-height: 1.5;">
-          Quét mã QR hoặc sao chép liên kết bên dưới để mở trên điện thoại. Điện thoại sẽ <strong>tự động kết nối Đám Mây và đồng bộ 100% số liệu tức thì</strong> với máy tính!
+          Mở địa chỉ trang web dưới đây trên điện thoại rồi <strong>đăng nhập bằng tài khoản Thủ kho</strong>. Liên kết này không chứa khóa hay mật khẩu nên gửi cho Khoa / Phòng để gửi phiếu đề xuất cũng an toàn.
         </p>
 
         <!-- QR CODE CONTAINER -->
@@ -2083,12 +2043,12 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
             <img id="phone-qr-img" src="" alt="Mã QR Đồng Bộ" style="width: 220px; height: 220px; display: none;">
             <span id="phone-qr-loading" style="font-size: 13px; color: var(--text-muted);">Đang tạo mã QR...</span>
           </div>
-          <small style="margin-top: 10px; font-weight: 700; color: var(--primary-dark); font-size: 12.5px;">📷 Mở Camera điện thoại quét mã này</small>
+          <small style="margin-top: 10px; font-weight: 700; color: var(--primary-dark); font-size: 12.5px;">🔐 Đăng nhập trên điện thoại để đồng bộ</small>
         </div>
 
         <!-- LINK SHARE -->
         <div style="display: flex; flex-direction: column; gap: 8px; text-align: left;">
-          <label class="form-label" style="margin: 0; font-size: 12px;"><strong>Hoặc gửi liên kết qua Zalo / Tin nhắn để mở trên điện thoại:</strong></label>
+          <label class="form-label" style="margin: 0; font-size: 12px;"><strong>Địa chỉ trang web:</strong></label>
           <div style="display: flex; gap: 8px;">
             <input type="text" class="form-control font-mono" id="phone-share-url-input" readonly style="font-size: 11.5px; background: #f8fafc;">
             <button type="button" class="btn btn-primary" id="btn-copy-share-url" style="white-space: nowrap; padding: 8px 14px; font-size: 13px;">
@@ -2098,7 +2058,7 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
         </div>
 
         <div style="margin-top: 16px; background: #f0fdfa; border: 1px solid #ccfbf1; border-radius: 8px; padding: 12px; font-size: 12px; text-align: left; color: #0f766e; line-height: 1.5;">
-          💡 <strong>Cách hoạt động:</strong> Sau khi điện thoại mở liên kết này, mọi thay đổi trên máy tính sẽ tự động cập nhật ngay trên điện thoại và ngược lại!
+          💡 <strong>Cách hoạt động:</strong> Sau khi đăng nhập trên điện thoại, mọi thay đổi trên máy tính sẽ tự động cập nhật ngay trên điện thoại và ngược lại. Khi dùng xong trên máy lạ, nhớ bấm <strong>Đăng xuất</strong>.
         </div>
       </div>
       <div class="modal-footer">
@@ -2116,7 +2076,9 @@ CREATE POLICY "Allow public read/write" ON public.forensic_inventory
   <div class="toast-container" id="toast-container"></div>
 
   <!-- JS SCRIPTS (Tự động nạp item-catalog-data.js và app.js dù ở trong thư mục js/ hay cùng cấp) -->
+  <script src="js/config.js"></script>
   <script src="js/item-catalog-data.js" onerror="var s=document.createElement('script');s.src='item-catalog-data.js';document.body.appendChild(s);"></script>
+  <script src="js/theme.js"></script>
   <script src="js/app.js" onerror="var s=document.createElement('script');s.src='app.js';document.body.appendChild(s);"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function() {

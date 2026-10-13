@@ -1937,7 +1937,8 @@ if (typeof module !== "undefined" && module.exports) {
               this.data.settings.headOfAdmin = '';
             }
             // Tự động chuyển đổi mật khẩu cũ sang chuẩn băm SHA-256 an toàn cao cấp
-            if (this.data.settings.security && (!this.data.settings.security.passwordHash || this.data.settings.security.passwordHash.length !== 64)) {
+            const pwRec = this.data.settings.security && this.data.settings.security.passwordHash;
+            if (this.data.settings.security && !(typeof pwRec === 'string' && (pwRec.startsWith('pbkdf2$') || pwRec.length === 64))) {
               this.data.settings.security.passwordHash = 'a761f7346e555e6ec2df75ffce3ea1125696d7cadbb4d7c03a837794fd1f40e9';
             }
             this.save();
@@ -2459,34 +2460,73 @@ if (typeof module !== "undefined" && module.exports) {
     }
 
     // ==========================================
-    // CLOUD SYNC METHODS (SUPABASE)
+    // CLOUD SYNC METHODS (SUPABASE) - PHIÊN BẢN BẢO MẬT
+    // - URL / anon key chỉ lấy từ js/config.js (không nhận từ link, QR, ô nhập)
+    // - Đọc / ghi kho bắt buộc phải đăng nhập tài khoản Thủ kho (Supabase Auth + RLS)
     // ==========================================
-    
+
     normalizeSupabaseUrl(url) {
       if (!url) return '';
-      let clean = url.trim().replace(/\/+$/, '');
+      let clean = String(url).trim().replace(/\/+$/, '');
       clean = clean.replace(/\/rest\/v\d+$/, '');
       return clean;
     }
 
-    initCloud(url = null, key = null) {
-      const cloudCfg = this.data.settings?.cloudSync || {};
-      const supabaseUrl = this.normalizeSupabaseUrl(url || cloudCfg.supabaseUrl);
-      const supabaseKey = key || cloudCfg.supabaseKey;
+    getCloudConfig() {
+      const cfg = (typeof window !== 'undefined' && window.FORENSIC_CONFIG) || {};
+      const url = this.normalizeSupabaseUrl(cfg.supabaseUrl || '');
+      const key = String(cfg.supabaseAnonKey || '').trim();
+      if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(url) || !key) return null;
+      return { url, key };
+    }
 
-      if (!supabaseUrl || !supabaseKey) {
+    isCloudConfigured() {
+      return !!this.getCloudConfig();
+    }
+
+    initCloud() {
+      if (this.cloudClient) return true;
+      const cfg = this.getCloudConfig();
+      if (!cfg) {
         this.cloudClient = null;
         return false;
       }
-
-      const sbLib = (typeof window !== 'undefined' && window.supabase) || (typeof supabase !== 'undefined' ? supabase : null);
+      const sbLib = (typeof window !== 'undefined' && window.supabase) || null;
       if (!sbLib || !sbLib.createClient) {
         console.warn('Supabase JS SDK chưa được tải');
         return false;
       }
-
+      // Phiên đăng nhập: "Ghi nhớ" -> localStorage (tự hết hạn theo Supabase), không ghi nhớ -> sessionStorage (đóng tab là mất)
+      const REMEMBER_FLAG = 'forensic_auth_remember';
+      const authStorage = {
+        getItem: (k) => {
+          try { return sessionStorage.getItem(k) ?? localStorage.getItem(k); } catch (e) { return null; }
+        },
+        setItem: (k, v) => {
+          try {
+            if (localStorage.getItem(REMEMBER_FLAG) === '0') {
+              sessionStorage.setItem(k, v);
+              localStorage.removeItem(k);
+            } else {
+              localStorage.setItem(k, v);
+              sessionStorage.removeItem(k);
+            }
+          } catch (e) {}
+        },
+        removeItem: (k) => {
+          try { sessionStorage.removeItem(k); localStorage.removeItem(k); } catch (e) {}
+        }
+      };
       try {
-        this.cloudClient = sbLib.createClient(supabaseUrl, supabaseKey);
+        this.cloudClient = sbLib.createClient(cfg.url, cfg.key, {
+          auth: {
+            storage: authStorage,
+            storageKey: 'forensic_store_sb_auth',
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: false
+          }
+        });
         return true;
       } catch (err) {
         console.warn('Lỗi khởi tạo Supabase Client:', err);
@@ -2495,32 +2535,28 @@ if (typeof module !== "undefined" && module.exports) {
       }
     }
 
-    async testCloudConnection(url, key) {
-      const sbLib = (typeof window !== 'undefined' && window.supabase) || (typeof supabase !== 'undefined' ? supabase : null);
-      if (!sbLib || !sbLib.createClient) {
-        return { success: false, message: 'Thư viện Supabase SDK chưa tải được. Vui lòng kiểm tra kết nối Internet.' };
-      }
-      try {
-        const testClient = sbLib.createClient(this.normalizeSupabaseUrl ? this.normalizeSupabaseUrl(url) : url.replace(/\/rest\/v\d+$/, ''), key);
-        const { data, error } = await testClient.from('forensic_inventory').select('id, updated_at').limit(1);
-        if (error) {
-          if (error.code === '42P01') {
-            return { success: false, message: 'Chưa tạo bảng "forensic_inventory". Vui lòng xem hướng dẫn để chạy lệnh SQL tạo bảng trong Supabase.' };
-          }
-          return { success: false, message: 'Lỗi Supabase: ' + (error.message || error.details || 'Khóa API không hợp lệ') };
+    setAdminSession(isAdmin) {
+      this.isAdminSession = !!isAdmin;
+    }
+
+    // Bản sao dữ liệu gửi lên mây: bỏ các thông tin cấu hình riêng của từng máy
+    buildCloudPayload(sourceData) {
+      const copy = JSON.parse(JSON.stringify(sourceData || {}));
+      if (copy.settings) {
+        if (copy.settings.cloudSync) {
+          copy.settings.cloudSync = {
+            enabled: true,
+            autoSync: copy.settings.cloudSync.autoSync !== false
+          };
         }
-        return { success: true, message: 'Kết nối thành công tới Database Supabase Cloud!', hasData: data && data.length > 0 };
-      } catch (e) {
-        return { success: false, message: 'Lỗi kết nối: ' + e.message };
       }
+      return copy;
     }
 
     async pushToCloud(customData = null) {
-      if (!this.cloudClient) {
-        const ok = this.initCloud();
-        if (!ok) return false;
-      }
-      const dataToPush = customData || this.data;
+      if (!this.isAdminSession) return false;
+      if (!this.cloudClient && !this.initCloud()) return false;
+      const dataToPush = this.buildCloudPayload(customData || this.data);
       try {
         const payload = {
           id: 'current_database',
@@ -2531,38 +2567,27 @@ if (typeof module !== "undefined" && module.exports) {
         if (error) throw error;
         if (!this.data.settings.cloudSync) this.data.settings.cloudSync = {};
         this.data.settings.cloudSync.lastSyncTime = new Date().toISOString();
+        this.lastPushFailed = false;
         this.save();
         return true;
       } catch (e) {
+        this.lastPushFailed = true;
         console.warn('Lỗi đẩy dữ liệu lên đám mây:', e);
         return false;
       }
     }
 
+    // Trả về: dữ liệu (thành công) | 'EMPTY' (trên mây chưa có dữ liệu) | null (lỗi / chưa đăng nhập)
     async pullFromCloud() {
-      if (!this.cloudClient) {
-        const ok = this.initCloud();
-        if (!ok) return null;
-      }
+      if (!this.isAdminSession) return null;
+      if (!this.cloudClient && !this.initCloud()) return null;
       try {
-        const { data, error } = await this.cloudClient.from('forensic_inventory').select('*').eq('id', 'current_database').single();
-        if (error) {
-          if (error.code === 'PGRST116') {
-            await this.pushToCloud();
-            return this.data;
-          }
-          throw error;
-        }
-        if (data && data.data) {
-          const currentCloud = this.data.settings?.cloudSync || {};
-          this.data = data.data;
-          if (!this.data.settings) this.data.settings = {};
-          this.data.settings.cloudSync = {
-            ...this.data.settings.cloudSync,
-            ...currentCloud,
-            lastSyncTime: data.updated_at || new Date().toISOString()
-          };
-          this.save();
+        const { data, error } = await this.cloudClient
+          .from('forensic_inventory').select('*').eq('id', 'current_database').maybeSingle();
+        if (error) throw error;
+        if (!data) return 'EMPTY';
+        if (data.data) {
+          this.applyCloudData(data.data, data.updated_at);
           return this.data;
         }
         return null;
@@ -2572,90 +2597,48 @@ if (typeof module !== "undefined" && module.exports) {
       }
     }
 
+    applyCloudData(cloudData, updatedAt) {
+      const autoSync = this.data?.settings?.cloudSync?.autoSync;
+      this.data = cloudData;
+      if (!this.data.settings) this.data.settings = {};
+      this.data.settings.cloudSync = {
+        enabled: true,
+        autoSync: autoSync !== false,
+        lastSyncTime: updatedAt || new Date().toISOString()
+      };
+      this.save();
+    }
+
     isCloudActive() {
-      const cloudCfg = this.data.settings?.cloudSync;
-      return !!(cloudCfg && cloudCfg.enabled && cloudCfg.supabaseUrl && cloudCfg.supabaseKey && this.cloudClient);
+      return !!(this.cloudClient && this.isAdminSession && this.isCloudConfigured());
     }
 
     getShareUrl() {
-      const cloudCfg = this.data.settings?.cloudSync || {};
-      if (!cloudCfg.supabaseUrl || !cloudCfg.supabaseKey) return null;
-      const configObj = {
-        url: cloudCfg.supabaseUrl,
-        key: cloudCfg.supabaseKey,
-        auto: true
-      };
-      try {
-        const jsonStr = JSON.stringify(configObj);
-        const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
-        const base = (typeof window !== 'undefined' ? (window.location.origin + window.location.pathname) : '');
-        return `${base}?cloud=${encoded}`;
-      } catch (err) {
-        console.warn('Lỗi mã hóa link chia sẻ:', err);
-        return null;
-      }
+      // Chỉ chia sẻ địa chỉ trang web, KHÔNG kèm khóa kết nối
+      if (typeof window === 'undefined') return null;
+      return window.location.origin + window.location.pathname;
     }
 
+    // Link cũ dạng ?cloud=... hoặc ?supabaseUrl=... KHÔNG còn được chấp nhận
+    // (tránh bị lừa mở link trỏ sang máy chủ lạ rồi tự đẩy dữ liệu kho sang đó).
     handleUrlCloudAutoConnect() {
       if (typeof window === 'undefined') return false;
-      // Khởi tạo data nếu chưa có
-      this.getData();
-
-      let encodedConfig = null;
-      if (window.location.hash && window.location.hash.includes('cloud=')) {
-        const m = window.location.hash.match(/cloud=([^&]+)/);
-        if (m) encodedConfig = m[1];
+      const hasLegacy = /[?&#](cloud|supabaseUrl|supabaseKey)=/.test(window.location.search + window.location.hash);
+      if (hasLegacy) {
+        try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
+        this.ignoredLegacyLink = true;
       }
-      if (!encodedConfig && window.location.search && window.location.search.includes('cloud=')) {
-        const sp = new URLSearchParams(window.location.search);
-        encodedConfig = sp.get('cloud');
-      }
-      if (!encodedConfig && window.location.search && window.location.search.includes('supabaseUrl')) {
-        const sp = new URLSearchParams(window.location.search);
-        const url = sp.get('supabaseUrl');
-        const key = sp.get('supabaseKey');
-        if (url && key) {
-          if (!this.data.settings) this.data.settings = {};
-          this.data.settings.cloudSync = {
-            enabled: true,
-            autoSync: true,
-            supabaseUrl: url,
-            supabaseKey: key,
-            lastSyncTime: null
-          };
-          this.save();
-          this.initCloud();
-          try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
-          return true;
-        }
-      }
-      if (encodedConfig) {
-        try {
-          const decodedStr = decodeURIComponent(escape(atob(encodedConfig)));
-          const config = JSON.parse(decodedStr);
-          if (config.url && config.key) {
-            if (!this.data.settings) this.data.settings = {};
-            this.data.settings.cloudSync = {
-              enabled: true,
-              autoSync: true,
-              supabaseUrl: config.url,
-              supabaseKey: config.key,
-              lastSyncTime: null
-            };
-            this.save();
-            this.initCloud();
-            try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
-            return true;
-          }
-        } catch (err) {
-          console.warn('Không giải mã được cấu hình Cloud từ URL:', err);
-        }
+      // Xóa cấu hình đám mây cũ lưu trên máy (kể cả khóa) nếu còn
+      if (this.data?.settings?.cloudSync && (this.data.settings.cloudSync.supabaseKey || this.data.settings.cloudSync.supabaseUrl)) {
+        delete this.data.settings.cloudSync.supabaseKey;
+        delete this.data.settings.cloudSync.supabaseUrl;
+        this.save();
       }
       return false;
     }
 
-    setupRealtimeSubscription(onRemoteChange) {
-      if (!this.cloudClient) return;
+    setupRealtimeSubscription(onRemoteChange, onNewPublicRequisition) {
+      if (!this.cloudClient || !this.isAdminSession) return;
       try {
         if (this.realtimeChannel) {
           this.cloudClient.removeChannel(this.realtimeChannel);
@@ -2664,19 +2647,12 @@ if (typeof module !== "undefined" && module.exports) {
           .channel('forensic_realtime_sync')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'forensic_inventory' }, payload => {
             if (payload.new && payload.new.data) {
-              const currentCloud = this.data.settings?.cloudSync || {};
-              this.data = payload.new.data;
-              if (!this.data.settings) this.data.settings = {};
-              this.data.settings.cloudSync = {
-                ...this.data.settings.cloudSync,
-                ...currentCloud,
-                lastSyncTime: payload.new.updated_at || new Date().toISOString()
-              };
-              this.save();
-              if (typeof onRemoteChange === 'function') {
-                onRemoteChange(this.data);
-              }
+              this.applyCloudData(payload.new.data, payload.new.updated_at);
+              if (typeof onRemoteChange === 'function') onRemoteChange(this.data);
             }
+          })
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'public_requisitions' }, () => {
+            if (typeof onNewPublicRequisition === 'function') onNewPublicRequisition();
           })
           .subscribe();
       } catch (err) {
@@ -2684,10 +2660,143 @@ if (typeof module !== "undefined" && module.exports) {
       }
     }
 
+    teardownCloudSession() {
+      try {
+        if (this.cloudClient && this.realtimeChannel) this.cloudClient.removeChannel(this.realtimeChannel);
+      } catch (e) {}
+      this.realtimeChannel = null;
+      this.isAdminSession = false;
+    }
+
+    // Xóa toàn bộ dữ liệu kho lưu tạm trên máy này (dùng khi Đăng xuất ở chế độ Đám mây)
+    wipeLocalCache() {
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      this.data = JSON.parse(JSON.stringify(INITIAL_DATA));
+      this.data.items = [];
+      this.data.transactions = [];
+      this.data.requisitions = [];
+      this.save();
+    }
+
     triggerCloudAutoSync() {
-      const cfg = this.data.settings?.cloudSync;
-      if (cfg && cfg.enabled && cfg.autoSync) {
+      const cfg = this.data.settings?.cloudSync || {};
+      if (this.isCloudActive() && cfg.autoSync !== false) {
         this.pushToCloud().catch(err => console.warn('Lỗi auto sync background:', err));
+      }
+    }
+
+    // ==========================================
+    // CỔNG CÔNG KHAI CHO KHOA / PHÒNG (KHÔNG CẦN ĐĂNG NHẬP)
+    // ==========================================
+    async fetchPublicStock() {
+      if (!this.cloudClient && !this.initCloud()) return null;
+      try {
+        const { data, error } = await this.cloudClient.rpc('get_public_stock');
+        if (error) throw error;
+        const list = Array.isArray(data) ? data : [];
+        return list.map(it => ({
+          id: String(it.id || ''),
+          code: String(it.code || ''),
+          name: String(it.name || ''),
+          unit: String(it.unit || 'Cái'),
+          warehouseId: it.warehouseId === 'OFFICE' ? 'OFFICE' : 'CHEMICAL',
+          batches: [{ quantity: Number(it.qty) || 0 }]
+        }));
+      } catch (e) {
+        console.warn('Lỗi tải danh sách hàng còn tồn:', e);
+        return null;
+      }
+    }
+
+    async submitPublicRequisition(req) {
+      if (!this.cloudClient && !this.initCloud()) {
+        return { ok: false, message: 'Chưa cấu hình kết nối máy chủ.' };
+      }
+      try {
+        const { error } = await this.cloudClient.from('public_requisitions').insert({ payload: req });
+        if (error) throw error;
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, message: (e && e.message) || 'Không gửi được phiếu.' };
+      }
+    }
+
+    // Thủ kho: nhận phiếu từ hộp thư công khai -> kiểm tra, làm sạch -> đưa vào danh sách đề xuất
+    async importPublicRequisitions() {
+      if (!this.isCloudActive()) return 0;
+      try {
+        const { data: rows, error } = await this.cloudClient
+          .from('public_requisitions').select('id, created_at, payload')
+          .order('created_at', { ascending: true }).limit(200);
+        if (error) throw error;
+        if (!rows || rows.length === 0) return 0;
+
+        const data = this.getData();
+        data.requisitions = data.requisitions || [];
+        const clean = (v, max = 200) => String(v == null ? '' : v)
+          .replace(/[<>"'`\\]/g, '')
+          .replace(/[\u0000-\u001f\u007f]/g, ' ')
+          .trim()
+          .slice(0, max);
+        const depts = this.getDepartments();
+        let added = 0;
+
+        rows.forEach(row => {
+          const reqId = `REQ-WEB-${String(row.id).replace(/[^a-f0-9-]/gi, '')}`;
+          if (data.requisitions.some(r => r.id === reqId)) return;
+          const p = (row.payload && typeof row.payload === 'object') ? row.payload : {};
+          const dept = depts.find(d => d.id === p.departmentId);
+          const wh = ['CHEMICAL', 'OFFICE', 'ALL'].includes(p.warehouseId) ? p.warehouseId : 'ALL';
+          const items = (Array.isArray(p.items) ? p.items : []).slice(0, 50).map(pi => {
+            const it = data.items.find(x => x.id === pi.itemId);
+            if (!it) return null;
+            const qty = Math.floor(Number(pi.quantity));
+            if (!Number.isFinite(qty) || qty < 1 || qty > 100000) return null;
+            return {
+              itemId: it.id,
+              itemCode: it.code,
+              itemName: it.name,
+              unit: it.unit,
+              quantity: qty,
+              notes: clean(pi.notes, 200)
+            };
+          }).filter(Boolean);
+          if (items.length === 0) return;
+          const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(String(p.date || ''));
+          const codeOk = /^DX-\d{4}-\d{4,6}$/.test(String(p.code || ''));
+
+          data.requisitions.unshift({
+            id: reqId,
+            code: codeOk ? p.code : `DX-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+            warehouseId: wh,
+            departmentId: dept ? dept.id : '',
+            departmentName: dept ? dept.name : 'Không rõ khoa / phòng',
+            requester: clean(p.requester, 100) || 'Không ghi tên',
+            date: dateOk ? p.date : String(row.created_at || '').slice(0, 10),
+            reason: clean(p.reason, 500) || 'Đề xuất lãnh vật tư / VPP thường quy',
+            status: 'PENDING',
+            source: 'WEB',
+            createdAt: row.created_at || new Date().toISOString(),
+            items,
+            approvedAt: null,
+            stockOutCode: null,
+            stockOutId: null,
+            rejectReason: null
+          });
+          added++;
+        });
+
+        this.save();
+        // Chỉ xóa khỏi hộp thư sau khi đã lưu thành công lên mây
+        const pushed = added > 0 ? await this.pushToCloud() : true;
+        if (pushed) {
+          const ids = rows.map(r => r.id);
+          await this.cloudClient.from('public_requisitions').delete().in('id', ids);
+        }
+        return added;
+      } catch (e) {
+        console.warn('Lỗi nhận phiếu đề xuất từ khoa / phòng:', e);
+        return 0;
       }
     }
 
@@ -5725,8 +5834,7 @@ if (typeof module !== "undefined" && module.exports) {
   
   // Update Cloud Status Badge & Buttons
   function updateCloudStatusUI(status = null, text = null) {
-    const cloudCfg = db.getData().settings?.cloudSync || {};
-    const isEnabled = cloudCfg.enabled;
+    const isEnabled = db.isCloudActive();
     const headerBadge = $('#cloud-sync-status');
     const headerText = $('#cloud-sync-text');
     const settingsBadge = $('#settings-cloud-badge');
@@ -5754,7 +5862,9 @@ if (typeof module !== "undefined" && module.exports) {
       settingsBadge.className = `cloud-status-badge status-${currentStatus}`;
       const sText = settingsBadge.querySelector('.status-text');
       if (sText) {
-        sText.textContent = isEnabled ? '🟢 Đã Bật Supabase Cloud' : '🟡 Chế độ Cục bộ (Offline)';
+        sText.textContent = isEnabled
+          ? '🟢 Đã Bật Supabase Cloud'
+          : (db.isCloudConfigured() ? '🟡 Đã cấu hình - chưa đăng nhập' : '🟡 Chế độ Cục bộ (Offline)');
       }
     }
   }
@@ -5771,9 +5881,11 @@ if (typeof module !== "undefined" && module.exports) {
     if ($('#sidebar-user-name')) $('#sidebar-user-name').textContent = settings.storekeeper || 'Lê Văn Quý';
 
     const cloud = settings.cloudSync || {};
-    if ($('#set-supabase-url')) $('#set-supabase-url').value = cloud.supabaseUrl || '';
-    if ($('#set-supabase-key')) $('#set-supabase-key').value = cloud.supabaseKey || '';
+    const cfg = db.getCloudConfig();
+    if ($('#set-supabase-url')) $('#set-supabase-url').value = cfg ? cfg.url : '(chưa cấu hình trong js/config.js)';
+    if ($('#set-supabase-key')) $('#set-supabase-key').value = cfg ? (cfg.key.slice(0, 6) + '••••••' + cfg.key.slice(-4)) : '';
     if ($('#set-supabase-autosync')) $('#set-supabase-autosync').checked = cloud.autoSync !== false;
+    if ($('#settings-admin-email')) $('#settings-admin-email').textContent = authState.email || '---';
     updateCloudStatusUI();
 
     const catBadge = $('#catalog-count-badge');
@@ -5942,11 +6054,43 @@ if (typeof module !== "undefined" && module.exports) {
     }
   }
 
-  function openCreateRequisitionModal() {
+  // Khoa / Phòng chưa đăng nhập (chế độ Đám mây): chỉ thấy danh sách hàng còn tồn do máy chủ cung cấp
+  let publicStockCache = null;
+  function isPublicRequisitionMode() {
+    return db.isCloudConfigured() && !db.isCloudActive();
+  }
+  function getReqSourceItems(warehouseId) {
+    if (isPublicRequisitionMode()) {
+      const list = publicStockCache || [];
+      if (!warehouseId || warehouseId === 'ALL') return list;
+      return list.filter(it => it.warehouseId === warehouseId);
+    }
+    return db.getItems(warehouseId);
+  }
+  function getReqSourceItemById(id) {
+    if (isPublicRequisitionMode()) return (publicStockCache || []).find(it => it.id === id) || null;
+    return db.getItemById(id);
+  }
+  function escapeAttr(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function openCreateRequisitionModal() {
     const modal = $('#modal-create-requisition');
     if (!modal) {
       console.warn('modal-create-requisition not found');
       return;
+    }
+
+    if (isPublicRequisitionMode()) {
+      showToast('Đang tải danh sách hàng còn tồn kho...', 'info');
+      publicStockCache = await db.fetchPublicStock();
+      if (!publicStockCache) {
+        showToast('Không tải được danh sách hàng. Vui lòng kiểm tra Internet rồi thử lại!', 'danger');
+        return;
+      }
     }
 
     const form = $('#form-create-requisition');
@@ -5960,8 +6104,8 @@ if (typeof module !== "undefined" && module.exports) {
     // Check which warehouse has items in stock
     const whSelect = $('#req-in-warehouse');
     if (whSelect) {
-      const chemItems = db.getItems('CHEMICAL').filter(it => (it.batches || []).reduce((s, b) => s + Number(b.quantity || 0), 0) > 0);
-      const officeItems = db.getItems('OFFICE').filter(it => (it.batches || []).reduce((s, b) => s + Number(b.quantity || 0), 0) > 0);
+      const chemItems = getReqSourceItems('CHEMICAL').filter(it => (it.batches || []).reduce((s, b) => s + Number(b.quantity || 0), 0) > 0);
+      const officeItems = getReqSourceItems('OFFICE').filter(it => (it.batches || []).reduce((s, b) => s + Number(b.quantity || 0), 0) > 0);
       const totalAvail = chemItems.length + officeItems.length;
 
       whSelect.innerHTML = `
@@ -6006,7 +6150,7 @@ if (typeof module !== "undefined" && module.exports) {
   function addRequisitionItemRow() {
     const tbody = $('#req-create-items-tbody');
     const whVal = $('#req-in-warehouse')?.value || 'ALL';
-    const items = db.getItems(whVal === 'ALL' ? null : whVal);
+    const items = getReqSourceItems(whVal === 'ALL' ? null : whVal);
 
     // Only show items with available stock > 0
     let optionsHtml = '<option value="">-- Chọn mặt hàng còn tồn kho --</option>';
@@ -6017,7 +6161,7 @@ if (typeof module !== "undefined" && module.exports) {
       if (totalQty > 0) {
         availableCount++;
         const whTag = it.warehouseId === 'CHEMICAL' ? '[Vật Tư]' : '[VPP]';
-        optionsHtml += `<option value="${it.id}" data-unit="${it.unit}" data-stock="${totalQty}" data-code="${it.code}" data-wh="${it.warehouseId}">${whTag} ${it.code} - ${it.name} (Còn tồn: ${totalQty} ${it.unit})</option>`;
+        optionsHtml += `<option value="${escapeAttr(it.id)}" data-unit="${escapeAttr(it.unit)}" data-stock="${totalQty}" data-code="${escapeAttr(it.code)}" data-wh="${escapeAttr(it.warehouseId)}">${whTag} ${escapeAttr(it.code)} - ${escapeAttr(it.name)} (Còn tồn: ${totalQty} ${escapeAttr(it.unit)})</option>`;
       }
     });
 
@@ -6495,7 +6639,7 @@ if (typeof module !== "undefined" && module.exports) {
 
     // Submit Create Requisition
     if ($('#form-create-requisition')) {
-      $('#form-create-requisition').onsubmit = (e) => {
+      $('#form-create-requisition').onsubmit = async (e) => {
         e.preventDefault();
         const wh = $('#req-in-warehouse').value;
         const deptSelect = $('#req-in-department');
@@ -6516,7 +6660,7 @@ if (typeof module !== "undefined" && module.exports) {
 
           const opt = select?.selectedOptions?.[0] || (select?.options && select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null);
           const itemCode = opt?.getAttribute('data-code') || '';
-          const it = db.getItemById(itemId);
+          const it = getReqSourceItemById(itemId);
           const itemName = it ? it.name : (opt?.textContent || '');
           const unit = opt?.getAttribute('data-unit') || (it ? it.unit : 'Cái');
           const qtyInput = r.querySelector('.req-item-qty');
@@ -6535,6 +6679,43 @@ if (typeof module !== "undefined" && module.exports) {
 
         if (items.length === 0) {
           showToast('Vui lòng chọn ít nhất 1 mặt hàng cần xin lãnh!', 'warning');
+          return;
+        }
+
+        if (!departmentId) {
+          showToast('Vui lòng chọn Khoa / Phòng đề xuất!', 'warning');
+          return;
+        }
+
+        // Chế độ Đám mây + chưa đăng nhập: gửi phiếu vào hộp thư công khai trên máy chủ
+        if (isPublicRequisitionMode()) {
+          const submitBtn = e.submitter || $('#form-create-requisition button[type="submit"]');
+          if (submitBtn) submitBtn.disabled = true;
+          const code = `DX-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+          const payload = {
+            code,
+            warehouseId: wh,
+            departmentId,
+            requester: requester.slice(0, 100),
+            date,
+            reason: reason.slice(0, 500),
+            items: items.slice(0, 50).map(i => ({ itemId: i.itemId, quantity: i.quantity, notes: String(i.notes || '').slice(0, 200) }))
+          };
+          const res = await db.submitPublicRequisition(payload);
+          if (submitBtn) submitBtn.disabled = false;
+          if (!res.ok) {
+            showToast('❌ Gửi phiếu thất bại: ' + res.message, 'danger');
+            return;
+          }
+          const sentReq = {
+            id: code, code, warehouseId: wh, departmentId, departmentName, requester, date, reason,
+            status: 'PENDING', createdAt: new Date().toISOString(), items
+          };
+          closeCreateRequisitionModal();
+          showToast(`🎉 Đã gửi Phiếu Đề Xuất (${code}) tới Thủ kho thành công!`, 'success');
+          if (confirm(`Phiếu đề xuất ${code} đã gửi. Bạn có muốn in Phiếu Đề Xuất A4 ngay bây giờ?`)) {
+            printRequisitionReceipt(sentReq, db.getData().settings);
+          }
           return;
         }
 
@@ -7375,21 +7556,20 @@ if (typeof module !== "undefined" && module.exports) {
     };
 
     
-    // Cloud Sync Handlers
+    // Cloud Sync Handlers (Phiên bản bảo mật: cấu hình nằm trong js/config.js)
     const handleSyncNow = async () => {
       const syncBtn = $('#btn-sync-now');
-      if (syncBtn) syncBtn.classList.add('spinning');
-      updateCloudStatusUI('syncing', 'Đang đồng bộ...');
-
-      const cloudCfg = db.getData().settings?.cloudSync || {};
-      if (!cloudCfg.enabled) {
-        showToast('Vui lòng vào Cài Đặt để nhập khóa kết nối Supabase Cloud trước!', 'warning');
-        if (syncBtn) syncBtn.classList.remove('spinning');
-        updateCloudStatusUI('offline');
+      if (!db.isCloudActive()) {
+        showToast(db.isCloudConfigured()
+          ? 'Vui lòng đăng nhập tài khoản Thủ kho để đồng bộ Đám Mây!'
+          : 'Chưa cấu hình Đám Mây (file js/config.js). App đang chạy chế độ Cục bộ.', 'warning');
+        updateCloudStatusUI();
         return;
       }
-
+      if (syncBtn) syncBtn.classList.add('spinning');
+      updateCloudStatusUI('syncing', 'Đang đồng bộ...');
       const res = await db.pullFromCloud();
+      await receivePublicRequisitions(false);
       if (syncBtn) syncBtn.classList.remove('spinning');
 
       if (res) {
@@ -7399,7 +7579,7 @@ if (typeof module !== "undefined" && module.exports) {
         showToast('Đồng bộ dữ liệu Đám Mây thành công!');
       } else {
         updateCloudStatusUI('error', 'Đồng bộ thất bại');
-        showToast('Không thể kết nối tới Supabase Cloud. Vui lòng kiểm tra Internet hoặc API Key.', 'danger');
+        showToast('Không thể kết nối tới Supabase Cloud. Vui lòng kiểm tra Internet hoặc đăng nhập lại.', 'danger');
       }
     };
 
@@ -7414,175 +7594,84 @@ if (typeof module !== "undefined" && module.exports) {
 
     if ($('#btn-test-supabase')) {
       $('#btn-test-supabase').onclick = async () => {
-        const url = $('#set-supabase-url').value.trim();
-        const key = $('#set-supabase-key').value.trim();
-        if (!url || !key) {
-          showToast('Vui lòng nhập đầy đủ Supabase Project URL và API Key!', 'warning');
+        if (!db.isCloudConfigured()) {
+          showToast('Chưa điền Supabase URL / anon key trong file js/config.js.', 'warning');
           return;
         }
-        showToast('Đang kiểm tra kết nối Supabase...', 'info');
-        const res = await db.testCloudConnection(url, key);
-        if (res.success) {
-          showToast(res.message + (res.hasData ? ' (Đã có dữ liệu)' : ' (Bảng mới)'));
-        } else {
-          showToast(res.message, 'danger');
+        if (!db.isCloudActive()) {
+          showToast('Đã cấu hình máy chủ nhưng chưa đăng nhập Thủ kho.', 'warning');
+          return;
         }
+        const res = await db.pullFromCloud();
+        showToast(res ? '🟢 Kết nối và quyền Thủ kho hoạt động bình thường!' : 'Không đọc được dữ liệu. Kiểm tra lại quyền tài khoản (bảng app_admins).', res ? 'success' : 'danger');
+        if (res) { renderCurrentView(); updateCloudStatusUI('online'); }
       };
     }
 
-    if ($('#btn-apply-quick-sync')) {
-      $('#btn-apply-quick-sync').onclick = async () => {
-        const raw = $('#input-quick-sync-token')?.value?.trim();
-        if (!raw) {
-          showToast('Vui lòng dán đường link hoặc mã chia sẻ vào ô!', 'warning');
-          return;
-        }
-        let token = raw;
-        if (raw.includes('cloud=')) {
-          const m = raw.match(/cloud=([^&#\s]+)/);
-          if (m) token = m[1];
-        }
-        try {
-          const decodedStr = decodeURIComponent(escape(atob(token)));
-          const config = JSON.parse(decodedStr);
-          if (config.url && config.key) {
-            $('#set-supabase-url').value = config.url;
-            $('#set-supabase-key').value = config.key;
-            if ($('#set-supabase-autosync')) $('#set-supabase-autosync').checked = true;
-            $('#btn-save-supabase').click();
-            showToast('🟢 Đã nhận diện cấu hình! Đang kích hoạt kết nối Đám Mây...', 'info');
-          } else {
-            showToast('Mã đồng bộ không đúng định dạng. Vui lòng kiểm tra lại!', 'danger');
-          }
-        } catch (e) {
-          showToast('Không thể giải mã link này. Vui lòng sao chép đúng link từ máy tính!', 'danger');
-        }
-      };
-    }
-
-    if ($('#btn-save-supabase')) {
-      $('#btn-save-supabase').onclick = async () => {
-        const url = $('#set-supabase-url').value.trim();
-        const key = $('#set-supabase-key').value.trim();
-        const autoSync = $('#set-supabase-autosync') ? $('#set-supabase-autosync').checked : true;
-
-        if (!url || !key) {
-          // Disable cloud if fields emptied
-          const settings = db.getData().settings;
-          settings.cloudSync = { enabled: false, supabaseUrl: '', supabaseKey: '', autoSync: true, lastSyncTime: null };
-          db.save();
-          updateCloudStatusUI('offline');
-          showToast('Đã tắt kết nối Đám Mây (Dùng chế độ Cục bộ)!');
-          return;
-        }
-
-        showToast('Đang kết nối và khởi tạo Supabase Cloud...', 'info');
-        const test = await db.testCloudConnection(url, key);
-        if (!test.success) {
-          showToast(test.message, 'danger');
-          return;
-        }
-
+    if ($('#set-supabase-autosync')) {
+      $('#set-supabase-autosync').onchange = () => {
         const settings = db.getData().settings;
-        settings.cloudSync = {
-          enabled: true,
-          supabaseUrl: url,
-          supabaseKey: key,
-          autoSync: autoSync,
-          lastSyncTime: new Date().toISOString()
-        };
+        settings.cloudSync = settings.cloudSync || {};
+        settings.cloudSync.autoSync = $('#set-supabase-autosync').checked;
         db.save();
-        db.initCloud(url, key);
-
-        // Setup realtime subscription
-        db.setupRealtimeSubscription(() => {
-          renderCurrentView();
-          updateGlobalAlertBadge();
-          showToast('☁️ Dữ liệu vừa được cập nhật từ thiết bị khác!', 'info');
-        });
-
-        // Initial push or pull
-        if (test.hasData) {
-          await db.pullFromCloud();
-          renderCurrentView();
-          updateGlobalAlertBadge();
-          showToast('Đã kết nối và đồng bộ dữ liệu từ Đám Mây về máy!');
-        } else {
-          await db.pushToCloud();
-          showToast('Đã kết nối và đẩy dữ liệu hiện tại lên Đám Mây thành công!');
-        }
-
-        updateCloudStatusUI('online');
+        showToast(settings.cloudSync.autoSync ? 'Đã bật tự động đồng bộ.' : 'Đã tắt tự động đồng bộ. Nhớ bấm "Đẩy Lên Đám Mây" sau khi sửa!', 'info');
       };
     }
 
     if ($('#btn-push-supabase')) {
       $('#btn-push-supabase').onclick = async () => {
+        if (!db.isCloudActive()) {
+          showToast('Vui lòng đăng nhập tài khoản Thủ kho trước!', 'warning');
+          return;
+        }
+        if (!confirm('Ghi đè dữ liệu trên Đám Mây bằng dữ liệu trên máy này?\n(Bản cũ vẫn được lưu trong nhật ký phiên bản của Supabase.)')) return;
         showToast('Đang đẩy dữ liệu lên Supabase Cloud...', 'info');
         const ok = await db.pushToCloud();
         if (ok) {
           showToast('Đã đẩy toàn bộ cơ sở dữ liệu lên Đám Mây thành công!');
           updateCloudStatusUI('online');
         } else {
-          showToast('Đẩy dữ liệu thất bại. Vui lòng kiểm tra cấu hình Supabase!', 'danger');
+          showToast('Đẩy dữ liệu thất bại. Vui lòng kiểm tra kết nối hoặc đăng nhập lại!', 'danger');
         }
       };
     }
 
     if ($('#btn-pull-supabase')) {
       $('#btn-pull-supabase').onclick = async () => {
+        if (!db.isCloudActive()) {
+          showToast('Vui lòng đăng nhập tài khoản Thủ kho trước!', 'warning');
+          return;
+        }
         showToast('Đang kéo dữ liệu từ Supabase Cloud...', 'info');
         const res = await db.pullFromCloud();
-        if (res) {
+        if (res && res !== 'EMPTY') {
           renderCurrentView();
           updateGlobalAlertBadge();
           showToast('Đã tải và nạp cơ sở dữ liệu từ Đám Mây thành công!');
           updateCloudStatusUI('online');
+        } else if (res === 'EMPTY') {
+          showToast('Trên Đám Mây chưa có dữ liệu. Bấm "Đẩy Lên Đám Mây" để tải dữ liệu máy này lên.', 'warning');
         } else {
-          showToast('Kéo dữ liệu thất bại. Vui lòng kiểm tra cấu hình Supabase!', 'danger');
+          showToast('Kéo dữ liệu thất bại. Vui lòng kiểm tra kết nối hoặc đăng nhập lại!', 'danger');
         }
       };
     }
 
-    // Mobile Phone Share & QR Modal
+    // Chia sẻ cho điện thoại: chỉ chia sẻ ĐỊA CHỈ TRANG WEB (không kèm khóa).
+    // Mã QR được vẽ ngay trên máy, không gửi link sang dịch vụ bên ngoài.
     const sharePhoneBtn = $('#btn-share-phone-qr');
     if (sharePhoneBtn) {
       sharePhoneBtn.onclick = () => {
-        const cloudCfg = db.getData().settings?.cloudSync;
-        if (!cloudCfg || !cloudCfg.supabaseUrl || !cloudCfg.supabaseKey) {
-          showToast('Vui lòng điền Supabase Project URL & API Key, bấm "Lưu & Bật Đám Mây" trước khi chia sẻ!', 'warning');
-          return;
-        }
         const shareUrl = db.getShareUrl();
-        if (!shareUrl) {
-          showToast('Không tạo được link chia sẻ. Vui lòng kiểm tra lại cấu hình Supabase!', 'danger');
-          return;
-        }
-        
         const inputEl = $('#phone-share-url-input');
-        if (inputEl) inputEl.value = shareUrl;
-
+        if (inputEl) inputEl.value = shareUrl || '';
         const qrImg = $('#phone-qr-img');
         const qrLoading = $('#phone-qr-loading');
-        if (qrImg) {
-          qrImg.style.display = 'none';
-          if (qrLoading) {
-            qrLoading.style.display = 'block';
-            qrLoading.textContent = 'Đang tạo mã QR...';
-          }
-          qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(shareUrl);
-          qrImg.onload = () => {
-            qrImg.style.display = 'block';
-            if (qrLoading) qrLoading.style.display = 'none';
-          };
-          qrImg.onerror = () => {
-            if (qrLoading) {
-              qrLoading.style.display = 'block';
-              qrLoading.textContent = 'Không tải được ảnh QR. Vui lòng sao chép liên kết bên dưới!';
-            }
-          };
+        if (qrImg) qrImg.style.display = 'none';
+        if (qrLoading) {
+          qrLoading.style.display = 'block';
+          qrLoading.textContent = 'Mở địa chỉ bên dưới trên điện thoại, sau đó đăng nhập bằng tài khoản Thủ kho.';
         }
-
         const modal = $('#modal-share-phone');
         if (modal) modal.classList.add('open');
       };
@@ -7608,7 +7697,7 @@ if (typeof module !== "undefined" && module.exports) {
             input.select();
             document.execCommand('copy');
           }
-          showToast('📋 Đã sao chép link đồng bộ! Hãy gửi qua Zalo/Tin nhắn để mở trên điện thoại.', 'success');
+          showToast('📋 Đã sao chép địa chỉ trang web.', 'success');
         } catch (e) {
           showToast('Vui lòng bôi đen và sao chép thủ công liên kết trong ô!', 'info');
         }
@@ -7624,6 +7713,7 @@ if (typeof module !== "undefined" && module.exports) {
               renderCurrentView();
               updateGlobalAlertBadge();
             }
+            receivePublicRequisitions(true);
           });
         }
       });
@@ -7636,6 +7726,7 @@ if (typeof module !== "undefined" && module.exports) {
               renderCurrentView();
               updateGlobalAlertBadge();
             }
+            receivePublicRequisitions(true);
           });
         }
       });
@@ -7653,63 +7744,145 @@ if (typeof module !== "undefined" && module.exports) {
 
   
   // ==========================================================================
-  // AUTHENTICATION & LOCK SCREEN MANAGEMENT
+  // AUTHENTICATION & LOCK SCREEN MANAGEMENT (PHIÊN BẢN BẢO MẬT)
+  //  - Chế độ Đám mây (có js/config.js): đăng nhập bằng tài khoản Supabase Auth,
+  //    máy chủ kiểm tra quyền Thủ kho (bảng app_admins) trước khi cho đọc / ghi.
+  //  - Chế độ Cục bộ (không có config): mật khẩu màn hình khóa băm PBKDF2.
   // ==========================================================================
   const AUTH_KEY = 'forensic_store_auth_token';
   const REMEMBER_KEY = 'forensic_store_remember_token';
+  const REMEMBER_FLAG = 'forensic_auth_remember';
+  const UNSYNCED_FLAG = 'forensic_unsynced_changes';
+  const LOCKOUT_KEY = 'forensic_lockout_until_time';
+  const ATTEMPTS_KEY = 'forensic_failed_attempts_count';
+  const SECURITY_SALT = 'FORENSIC_STORE_PRO_SECURE_SALT_2026';
+  const MASTER_HASH = 'a761f7346e555e6ec2df75ffce3ea1125696d7cadbb4d7c03a837794fd1f40e9';
+  const PBKDF2_ITERATIONS = 210000;
+  const MIN_PASSWORD_LENGTH = 8;
 
-  function isUserAuthenticated() {
-    // Check session token
+  const authState = { isAdmin: false, email: '' };
+
+  function isCloudMode() {
+    return db.isCloudConfigured();
+  }
+
+  // ---------- Ghi nhận thay đổi chưa đẩy được lên mây (để không mất khi đăng xuất) ----------
+  (function wrapPushForUnsyncedFlag() {
+    const originalPush = db.pushToCloud.bind(db);
+    db.pushToCloud = async function (customData = null) {
+      const ok = await originalPush(customData);
+      try {
+        if (ok) localStorage.removeItem(UNSYNCED_FLAG);
+        else if (db.isAdminSession) localStorage.setItem(UNSYNCED_FLAG, '1');
+      } catch (e) {}
+      return ok;
+    };
+  })();
+
+  function hasUnsyncedChanges() {
+    try { return localStorage.getItem(UNSYNCED_FLAG) === '1'; } catch (e) { return false; }
+  }
+
+  // ---------- Băm mật khẩu (chế độ Cục bộ) ----------
+  function bufToHex(buf) {
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  function hexToBuf(hex) {
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+    return out;
+  }
+  function safeEqual(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    return diff === 0;
+  }
+  async function hashLegacy(plainText) {
+    const msgBuffer = new TextEncoder().encode(SECURITY_SALT + plainText);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
+    return bufToHex(hashBuffer);
+  }
+  async function pbkdf2Hex(plainText, saltHex, iterations) {
+    const keyMaterial = await window.crypto.subtle.importKey(
+      'raw', new TextEncoder().encode(plainText), 'PBKDF2', false, ['deriveBits']);
+    const bits = await window.crypto.subtle.deriveBits(
+      { name: 'PBKDF2', hash: 'SHA-256', salt: hexToBuf(saltHex), iterations }, keyMaterial, 256);
+    return bufToHex(bits);
+  }
+  async function makePasswordRecord(plainText) {
+    const salt = bufToHex(window.crypto.getRandomValues(new Uint8Array(16)));
+    const hash = await pbkdf2Hex(plainText, salt, PBKDF2_ITERATIONS);
+    return `pbkdf2$${PBKDF2_ITERATIONS}$${salt}$${hash}`;
+  }
+  function getStoredPasswordRecord() {
+    const settings = db.getData().settings || {};
+    const rec = settings.security && settings.security.passwordHash;
+    if (typeof rec === 'string' && (rec.startsWith('pbkdf2$') || /^[a-f0-9]{64}$/.test(rec))) return rec;
+    return MASTER_HASH;
+  }
+  async function verifyLocalPassword(enteredPassword) {
+    if (!enteredPassword || !window.crypto || !window.crypto.subtle) return false;
+    const rec = getStoredPasswordRecord();
+    try {
+      if (rec.startsWith('pbkdf2$')) {
+        const [, iterStr, salt, hash] = rec.split('$');
+        const calc = await pbkdf2Hex(enteredPassword, salt, parseInt(iterStr, 10) || PBKDF2_ITERATIONS);
+        return safeEqual(calc, hash);
+      }
+      const ok = safeEqual(await hashLegacy(enteredPassword), rec);
+      if (ok) {
+        // Tự nâng cấp mật khẩu cũ (SHA-256) lên PBKDF2 ngay khi đăng nhập đúng
+        const data = db.getData();
+        data.settings.security = data.settings.security || {};
+        data.settings.security.passwordHash = await makePasswordRecord(enteredPassword);
+        db.save();
+      }
+      return ok;
+    } catch (e) {
+      console.warn('Lỗi kiểm tra mật khẩu:', e);
+      return false;
+    }
+  }
+
+  // ---------- Trạng thái khóa (chế độ Cục bộ) ----------
+  function isLocalUnlocked() {
     if (sessionStorage.getItem(AUTH_KEY) === 'authenticated') return true;
-    
-    // Check remember token
     const rememberToken = localStorage.getItem(REMEMBER_KEY);
     if (rememberToken) {
       try {
         const decoded = JSON.parse(atob(rememberToken));
-        // Valid for 30 days
         if (decoded && decoded.expiresAt && decoded.expiresAt > Date.now()) {
           sessionStorage.setItem(AUTH_KEY, 'authenticated');
           return true;
         }
-      } catch (e) {
-        localStorage.removeItem(REMEMBER_KEY);
-      }
+      } catch (e) {}
+      localStorage.removeItem(REMEMBER_KEY);
     }
     return false;
   }
-
-  function setAuthenticated(rememberMe = true) {
+  function setLocalUnlocked(rememberMe = true) {
     sessionStorage.setItem(AUTH_KEY, 'authenticated');
     if (rememberMe) {
-      const payload = {
-        authenticated: true,
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
-      };
-      localStorage.setItem(REMEMBER_KEY, btoa(JSON.stringify(payload)));
+      localStorage.setItem(REMEMBER_KEY, btoa(JSON.stringify({ authenticated: true, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 })));
     } else {
       localStorage.removeItem(REMEMBER_KEY);
     }
   }
 
-  function lockAppScreen(showToastMsg = true) {
+  // ---------- Giao diện khóa ----------
+  function showLockOverlay() {
     document.documentElement.classList.remove('is-unlocked');
     document.body.classList.add('app-locked');
-    sessionStorage.removeItem(AUTH_KEY);
-    localStorage.removeItem(REMEMBER_KEY);
     const overlay = $('#lock-screen-overlay');
     if (overlay) {
       overlay.style.display = 'flex';
       const pwdInput = $('#lock-password-input');
-      if (pwdInput) {
-        pwdInput.value = '';
-        setTimeout(() => pwdInput.focus(), 100);
-      }
+      if (pwdInput) pwdInput.value = '';
+      const focusEl = (isCloudMode() && $('#lock-email-input') && !$('#lock-email-input').value) ? $('#lock-email-input') : pwdInput;
+      if (focusEl) setTimeout(() => focusEl.focus(), 100);
       const errMsg = $('#lock-error-msg');
       if (errMsg) errMsg.style.display = 'none';
-    }
-    if (showToastMsg) {
-      showToast('🔒 Đã khóa màn hình bảo vệ!', 'info');
     }
   }
 
@@ -7717,107 +7890,167 @@ if (typeof module !== "undefined" && module.exports) {
     document.documentElement.classList.add('is-unlocked');
     document.body.classList.remove('app-locked');
     const overlay = $('#lock-screen-overlay');
-    if (overlay) {
-      overlay.style.display = 'none';
+    if (overlay) overlay.style.display = 'none';
+  }
+
+  function showLockError(text) {
+    const errMsg = $('#lock-error-msg');
+    if (errMsg) {
+      errMsg.style.display = 'block';
+      errMsg.textContent = text;
     }
   }
 
-  const LOCKOUT_KEY = 'forensic_lockout_until_time';
-  const ATTEMPTS_KEY = 'forensic_failed_attempts_count';
-  const SECURITY_SALT = 'FORENSIC_STORE_PRO_SECURE_SALT_2026';
-  // Chuỗi băm mật mã học một chiều SHA-256 an toàn chuẩn quốc tế (Salted SHA-256)
-  const MASTER_HASH = 'a761f7346e555e6ec2df75ffce3ea1125696d7cadbb4d7c03a837794fd1f40e9';
+  // Khóa / Đăng xuất
+  async function lockAppScreen(showToastMsg = true) {
+    if (isCloudMode()) {
+      if (authState.isAdmin && hasUnsyncedChanges()) {
+        const pushNow = confirm('Có thay đổi trên máy này CHƯA được đẩy lên Đám Mây.\nBấm OK để thử đẩy lên trước khi đăng xuất, Cancel để hủy đăng xuất.');
+        if (!pushNow) return;
+        const ok = await db.pushToCloud();
+        if (!ok) {
+          showToast('Không đẩy được dữ liệu lên Đám Mây. Hãy kiểm tra Internet rồi đăng xuất lại.', 'danger');
+          return;
+        }
+      }
+      try { if (db.cloudClient) await db.cloudClient.auth.signOut(); } catch (e) {}
+      authState.isAdmin = false;
+      authState.email = '';
+      db.teardownCloudSession();
+      db.wipeLocalCache();
+      try { localStorage.removeItem(UNSYNCED_FLAG); } catch (e) {}
+      showLockOverlay();
+      renderCurrentView();
+      updateGlobalAlertBadge();
+      updateCloudStatusUI();
+      if (showToastMsg) showToast('🔒 Đã đăng xuất và xóa dữ liệu kho lưu tạm trên máy này.', 'info');
+      return;
+    }
+    sessionStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem(REMEMBER_KEY);
+    showLockOverlay();
+    if (showToastMsg) showToast('🔒 Đã khóa màn hình bảo vệ!', 'info');
+  }
 
-  async function hashPassword(plainText) {
-    if (!plainText) return '';
+  // ---------- Nhận phiếu đề xuất từ Khoa / Phòng ----------
+  let receivingRequisitions = false;
+  async function receivePublicRequisitions(silent = false) {
+    if (!db.isCloudActive() || receivingRequisitions) return;
+    receivingRequisitions = true;
     try {
-      if (window.crypto && window.crypto.subtle) {
-        const msgBuffer = new TextEncoder().encode(SECURITY_SALT + plainText);
-        const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
-        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+      const n = await db.importPublicRequisitions();
+      if (n > 0) {
+        updateRequisitionsBadge();
+        if (state.currentView === 'requisitions') renderRequisitionsView();
+        showToast(`📨 Có ${n} phiếu đề xuất lãnh hàng mới từ Khoa / Phòng!`, 'info');
+      } else if (!silent) {
+        updateRequisitionsBadge();
       }
+    } finally {
+      receivingRequisitions = false;
+    }
+  }
+
+  // ---------- Sau khi Thủ kho đăng nhập thành công (chế độ Đám mây) ----------
+  async function onAdminSignedIn(email) {
+    authState.isAdmin = true;
+    authState.email = email || '';
+    db.setAdminSession(true);
+    unlockAppScreen();
+    updateCloudStatusUI('syncing', 'Đang đồng bộ...');
+
+    let realtimeTimer = null;
+    db.setupRealtimeSubscription(() => {
+      renderCurrentView();
+      updateGlobalAlertBadge();
+      showToast('☁️ Dữ liệu vừa được cập nhật từ thiết bị khác!', 'info');
+    }, () => {
+      clearTimeout(realtimeTimer);
+      realtimeTimer = setTimeout(() => receivePublicRequisitions(true), 800);
+    });
+
+    if (hasUnsyncedChanges()) {
+      const keepLocal = confirm('Máy này còn thay đổi CHƯA đẩy lên Đám Mây từ lần làm việc trước.\n\nOK = Đẩy dữ liệu trên máy này lên (ghi đè bản trên mây)\nCancel = Bỏ thay đổi trên máy, tải bản mới nhất từ mây về');
+      if (keepLocal) await db.pushToCloud();
+      else { try { localStorage.removeItem(UNSYNCED_FLAG); } catch (e) {} }
+    }
+
+    const res = await db.pullFromCloud();
+    if (res === 'EMPTY') {
+      const hasLocal = (db.getData().items || []).length > 0;
+      if (hasLocal && confirm('Đám Mây chưa có dữ liệu kho.\nĐẩy dữ liệu đang có trên máy này lên làm dữ liệu gốc?')) {
+        const ok = await db.pushToCloud();
+        showToast(ok ? 'Đã đẩy dữ liệu lên Đám Mây!' : 'Đẩy dữ liệu thất bại!', ok ? 'success' : 'danger');
+      }
+      updateCloudStatusUI('online');
+    } else if (res) {
+      updateCloudStatusUI('online');
+    } else {
+      updateCloudStatusUI('error', 'Lỗi kết nối đám mây');
+    }
+    loadSettingsView();
+    renderCurrentView();
+    updateGlobalAlertBadge();
+    await receivePublicRequisitions(false);
+  }
+
+  // Kiểm tra quyền Thủ kho trên máy chủ
+  async function checkIsAdmin() {
+    try {
+      const { data, error } = await db.cloudClient.rpc('is_admin');
+      if (error) throw error;
+      return data === true;
     } catch (e) {
-      console.warn('Crypto Subtle error:', e);
+      console.warn('Không kiểm tra được quyền Thủ kho:', e);
+      return null;
     }
-    // Fallback nếu không có SubtleCrypto
-    let hash = 0;
-    const str = SECURITY_SALT + plainText;
-    for (let i = 0; i < str.length; i++) {
-      hash = ((hash << 5) - hash) + str.charCodeAt(i);
-      hash |= 0;
-    }
-    return Math.abs(hash).toString(16);
   }
 
-  function getSystemPasswordHash() {
-    const settings = db.getData().settings;
-    if (settings && settings.security && settings.security.passwordHash) {
-      if (!settings.security.passwordHash || settings.security.passwordHash.length !== 64) {
-        settings.security.passwordHash = MASTER_HASH;
-        db.save();
-        return MASTER_HASH;
+  function prepareLockScreenForMode() {
+    const form = $('#form-login-lock');
+    const instruction = $('.lock-instruction');
+    const remember = $('#lock-remember-me');
+    if (isCloudMode()) {
+      if (instruction) instruction.textContent = 'Đăng nhập bằng tài khoản Thủ kho để truy cập dữ liệu kho:';
+      if (form && !$('#lock-email-input')) {
+        const wrap = document.createElement('div');
+        wrap.className = 'lock-input-group';
+        wrap.style.marginBottom = '10px';
+        wrap.innerHTML = '<input type="email" id="lock-email-input" class="form-control lock-input" placeholder="Email tài khoản Thủ kho..." required autocomplete="username" maxlength="120">';
+        const pwdGroup = form.querySelector('.lock-input-group');
+        form.insertBefore(wrap, pwdGroup || form.firstChild);
       }
-      return settings.security.passwordHash;
+      if (remember) {
+        try { remember.checked = localStorage.getItem(REMEMBER_FLAG) !== '0'; } catch (e) {}
+        const label = remember.closest('label')?.querySelector('span');
+        if (label) label.textContent = 'Ghi nhớ đăng nhập trên máy này (chỉ dùng trên máy cá nhân)';
+      }
+      const footer = $('.lock-card-footer span');
+      if (footer) footer.textContent = 'Xác thực tài khoản qua Supabase Auth';
+      const topLock = $('#btn-topbar-lock');
+      if (topLock) topLock.title = 'Đăng xuất (xóa dữ liệu tạm trên máy)';
+      const lockNow = $('#btn-lock-screen-now');
+      if (lockNow) lockNow.textContent = '🔒 Đăng Xuất Ngay';
+      const pwdDesc = $('#form-change-password p');
+      if (pwdDesc) pwdDesc.textContent = 'Đổi mật khẩu tài khoản Thủ kho đang đăng nhập (tài khoản Supabase). Mật khẩu mới cần ít nhất 8 ký tự; nên gồm chữ hoa, chữ thường, số và ký tự đặc biệt.';
+    } else {
+      const pwdDesc = $('#form-change-password p');
+      if (pwdDesc) pwdDesc.textContent = 'Chế độ Cục bộ: mật khẩu chỉ khóa màn hình trên máy này. Dữ liệu vẫn nằm trong trình duyệt, nên hãy dùng máy cá nhân và bật Đám Mây để bảo mật thật sự.';
     }
-    return MASTER_HASH;
+    $$('#form-change-password input[minlength]').forEach(el => el.setAttribute('minlength', String(MIN_PASSWORD_LENGTH)));
+    const newPwdInput = $('#input-new-password');
+    if (newPwdInput) newPwdInput.placeholder = `Mật khẩu mới (ít nhất ${MIN_PASSWORD_LENGTH} ký tự)`;
   }
 
-  async function verifyPassword(enteredPassword) {
-    if (!enteredPassword) return false;
-    // Chặn tuyệt đối mật khẩu mặc định cũ 123456
-    if (enteredPassword === '123456') {
-      return false;
-    }
-    const enteredHash = await hashPassword(enteredPassword);
-    const systemHash = getSystemPasswordHash();
-    return enteredHash === systemHash;
-  }
-
-  function initLockScreen() {
+  async function initLockScreen() {
     const overlay = $('#lock-screen-overlay');
     if (!overlay) return;
 
-    if (isUserAuthenticated()) {
-      unlockAppScreen();
-    } else {
-      document.documentElement.classList.remove('is-unlocked');
-      document.body.classList.add('app-locked');
-      overlay.style.display = 'flex';
-      const pwdInput = $('#lock-password-input');
-      if (pwdInput) setTimeout(() => pwdInput.focus(), 200);
-    }
-
-    // Chống mở F12 & phím tắt xem nguồn (DevTools Inspector)
-    window.addEventListener('keydown', (e) => {
-      // Phím F12
-      if (e.key === 'F12' || e.keyCode === 123) {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl + Shift + I, Ctrl + Shift + J, Ctrl + Shift + C
-      if (e.ctrlKey && e.shiftKey && ['I', 'i', 'J', 'j', 'C', 'c'].includes(e.key)) {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl + U (Xem mã nguồn trang)
-      if (e.ctrlKey && (e.key === 'u' || e.key === 'U')) {
-        e.preventDefault();
-        return false;
-      }
-    });
-
-    // Chặn chuột phải trên màn hình khóa
-    window.addEventListener('contextmenu', (e) => {
-      const lockOverlay = $('#lock-screen-overlay');
-      if (lockOverlay && lockOverlay.style.display !== 'none') {
-        e.preventDefault();
-        return false;
-      }
-    });
+    prepareLockScreenForMode();
+    const pwdInput = $('#lock-password-input');
 
     // Toggle show/hide password
     const btnToggle = $('#btn-toggle-lock-pwd');
-    const pwdInput = $('#lock-password-input');
     if (btnToggle && pwdInput) {
       btnToggle.onclick = () => {
         if (pwdInput.type === 'password') {
@@ -7830,13 +8063,10 @@ if (typeof module !== "undefined" && module.exports) {
       };
     }
 
-    // Kiểm tra và hiển thị trạng thái khóa tạm thời nếu nhập sai nhiều lần
     function checkAndApplyLockout() {
       const lockoutUntil = parseInt(sessionStorage.getItem(LOCKOUT_KEY) || '0', 10);
       const now = Date.now();
       const btnSubmit = $('#btn-unlock-submit');
-      const errMsg = $('#lock-error-msg');
-
       if (lockoutUntil > now) {
         const remainingSec = Math.ceil((lockoutUntil - now) / 1000);
         if (pwdInput) pwdInput.disabled = true;
@@ -7844,131 +8074,218 @@ if (typeof module !== "undefined" && module.exports) {
           btnSubmit.disabled = true;
           btnSubmit.textContent = `⏳ TẠM KHÓA (${remainingSec}s)`;
         }
-        if (errMsg) {
-          errMsg.style.display = 'block';
-          errMsg.textContent = `⚠️ Đã nhập sai quá 5 lần liên tiếp! Hệ thống tạm khóa trong ${remainingSec} giây để bảo vệ an toàn.`;
-        }
+        showLockError(`⚠️ Đã nhập sai quá 5 lần liên tiếp! Hệ thống tạm khóa trong ${remainingSec} giây để bảo vệ an toàn.`);
         setTimeout(checkAndApplyLockout, 1000);
         return true;
-      } else {
-        if (pwdInput) pwdInput.disabled = false;
-        if (btnSubmit) {
-          btnSubmit.disabled = false;
-          btnSubmit.textContent = '🔓 MỞ KHÓA TRUY CẬP';
-        }
-        return false;
       }
+      if (pwdInput) pwdInput.disabled = false;
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = isCloudMode() ? '🔓 ĐĂNG NHẬP' : '🔓 MỞ KHÓA TRUY CẬP';
+      }
+      return false;
+    }
+
+    function registerFailedAttempt(message) {
+      const attempts = parseInt(sessionStorage.getItem(ATTEMPTS_KEY) || '0', 10) + 1;
+      sessionStorage.setItem(ATTEMPTS_KEY, attempts.toString());
+      if (attempts >= 5) {
+        sessionStorage.setItem(LOCKOUT_KEY, (Date.now() + 60000 * Math.min(attempts - 4, 15)).toString());
+        checkAndApplyLockout();
+      } else {
+        showLockError(`${message} Bạn còn ${5 - attempts} lần thử.`);
+        if (pwdInput) {
+          pwdInput.value = '';
+          pwdInput.focus();
+        }
+      }
+    }
+
+    function clearFailedAttempts() {
+      sessionStorage.removeItem(ATTEMPTS_KEY);
+      sessionStorage.removeItem(LOCKOUT_KEY);
+    }
+
+    // Trạng thái ban đầu
+    if (isCloudMode()) {
+      showLockOverlay();
+      if (db.initCloud()) {
+        db.cloudClient.auth.onAuthStateChange((event) => {
+          if (event === 'SIGNED_OUT' && authState.isAdmin) {
+            authState.isAdmin = false;
+            db.teardownCloudSession();
+            showLockOverlay();
+            updateCloudStatusUI();
+            showToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'warning');
+          }
+        });
+        try {
+          const { data } = await db.cloudClient.auth.getSession();
+          const session = data && data.session;
+          if (session) {
+            const admin = await checkIsAdmin();
+            if (admin === true) {
+              await onAdminSignedIn(session.user && session.user.email);
+            } else if (admin === false) {
+              await db.cloudClient.auth.signOut();
+            }
+          }
+        } catch (e) {
+          console.warn('Lỗi đọc phiên đăng nhập:', e);
+        }
+        if (!authState.isAdmin && !hasUnsyncedChanges()) {
+          // Không có phiên hợp lệ: không giữ bản sao dữ liệu kho trên máy
+          db.wipeLocalCache();
+          renderCurrentView();
+          updateGlobalAlertBadge();
+        }
+      } else {
+        showLockError('⚠️ Không tải được thư viện kết nối máy chủ. Kiểm tra Internet rồi tải lại trang.');
+      }
+      if (db.ignoredLegacyLink) {
+        showToast('Link đồng bộ kiểu cũ (?cloud=...) không còn được dùng. Hãy đăng nhập bằng tài khoản Thủ kho.', 'warning');
+      }
+    } else if (isLocalUnlocked()) {
+      unlockAppScreen();
+    } else {
+      showLockOverlay();
     }
 
     checkAndApplyLockout();
 
-    // Login Form Submit với cơ chế băm mật mã học và chống dò
     const form = $('#form-login-lock');
     if (form) {
       form.onsubmit = async (e) => {
         e.preventDefault();
         if (checkAndApplyLockout()) return;
-
-        const pwd = pwdInput ? pwdInput.value.trim() : '';
+        const pwd = pwdInput ? pwdInput.value : '';
         const rememberMe = $('#lock-remember-me') ? $('#lock-remember-me').checked : true;
-        const errMsg = $('#lock-error-msg');
+        const btnSubmit = $('#btn-unlock-submit');
 
-        // Bẫy chặn nếu cố tình nhập mật khẩu mặc định 123456
-        if (pwd === '123456') {
-          if (errMsg) {
-            errMsg.style.display = 'block';
-            errMsg.textContent = '🚫 Mật khẩu mặc định 123456 đã bị hủy bỏ vì lý do an toàn! Vui lòng nhập đúng mật khẩu quản trị mới.';
+        if (isCloudMode()) {
+          const email = ($('#lock-email-input')?.value || '').trim().toLowerCase();
+          if (!email || !pwd) {
+            showLockError('⚠️ Vui lòng nhập đầy đủ email và mật khẩu.');
+            return;
           }
-          if (pwdInput) {
-            pwdInput.value = '';
-            pwdInput.focus();
+          if (!db.initCloud()) {
+            showLockError('⚠️ Không kết nối được máy chủ. Kiểm tra Internet rồi thử lại.');
+            return;
           }
+          try { localStorage.setItem(REMEMBER_FLAG, rememberMe ? '1' : '0'); } catch (err) {}
+          if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = '⏳ Đang xác thực...'; }
+          let signInError = null;
+          let user = null;
+          try {
+            const { data, error } = await db.cloudClient.auth.signInWithPassword({ email, password: pwd });
+            signInError = error;
+            user = data && data.user;
+          } catch (err) {
+            signInError = err;
+          }
+          if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🔓 ĐĂNG NHẬP'; }
+
+          if (signInError || !user) {
+            const msg = String(signInError?.message || '');
+            if (/fetch|network/i.test(msg)) {
+              showLockError('⚠️ Lỗi kết nối Internet. Vui lòng thử lại.');
+            } else {
+              registerFailedAttempt('⚠️ Email hoặc mật khẩu không đúng.');
+            }
+            return;
+          }
+          const admin = await checkIsAdmin();
+          if (admin !== true) {
+            await db.cloudClient.auth.signOut();
+            showLockError(admin === false
+              ? '🚫 Tài khoản này chưa được cấp quyền Thủ kho. Liên hệ người quản trị.'
+              : '⚠️ Không kiểm tra được quyền (máy chủ chưa chạy file nâng cấp SQL?).');
+            return;
+          }
+          clearFailedAttempts();
+          if (pwdInput) pwdInput.value = '';
+          showToast(`🔓 Đăng nhập thành công: ${user.email}`, 'success');
+          await onAdminSignedIn(user.email);
           return;
         }
 
-        const isValid = await verifyPassword(pwd);
-
+        // Chế độ Cục bộ
+        const isValid = await verifyLocalPassword(pwd);
         if (isValid) {
-          // Xóa đếm số lần nhập sai khi đã đúng
-          sessionStorage.removeItem(ATTEMPTS_KEY);
-          sessionStorage.removeItem(LOCKOUT_KEY);
-          setAuthenticated(rememberMe);
+          clearFailedAttempts();
+          setLocalUnlocked(rememberMe);
           unlockAppScreen();
-          if (errMsg) errMsg.style.display = 'none';
-          showToast('🔓 Xác thực thành công! Chào mừng Cử nhân Lê Văn Quý.', 'success');
+          $('#lock-error-msg') && ($('#lock-error-msg').style.display = 'none');
+          showToast('🔓 Xác thực thành công!', 'success');
           renderCurrentView();
         } else {
-          // Tăng số lần thử sai
-          let attempts = parseInt(sessionStorage.getItem(ATTEMPTS_KEY) || '0', 10) + 1;
-          sessionStorage.setItem(ATTEMPTS_KEY, attempts.toString());
-
-          if (attempts >= 5) {
-            sessionStorage.setItem(LOCKOUT_KEY, (Date.now() + 60000).toString());
-            checkAndApplyLockout();
-          } else {
-            if (errMsg) {
-              errMsg.style.display = 'block';
-              errMsg.textContent = `⚠️ Mật khẩu không chính xác. Bạn còn ${5 - attempts} lần thử lại!`;
-            }
-            if (pwdInput) {
-              pwdInput.value = '';
-              pwdInput.focus();
-            }
-          }
+          registerFailedAttempt('⚠️ Mật khẩu không chính xác.');
         }
       };
     }
 
-    // Topbar Lock Button
     const btnTopbarLock = $('#btn-topbar-lock');
-    if (btnTopbarLock) {
-      btnTopbarLock.onclick = () => lockAppScreen(true);
-    }
-
-    // Lock Now Button in Settings
+    if (btnTopbarLock) btnTopbarLock.onclick = () => lockAppScreen(true);
     const btnLockNow = $('#btn-lock-screen-now');
-    if (btnLockNow) {
-      btnLockNow.onclick = () => lockAppScreen(true);
-    }
+    if (btnLockNow) btnLockNow.onclick = () => lockAppScreen(true);
 
-    // Change Password Form - Băm mật khẩu mới bảo mật
+    // Đổi mật khẩu
     const formChangePwd = $('#form-change-password');
     if (formChangePwd) {
       formChangePwd.onsubmit = async (e) => {
         e.preventDefault();
-        const currentPwd = $('#input-current-password').value.trim();
-        const newPwd = $('#input-new-password').value.trim();
-        const confirmNewPwd = $('#input-confirm-new-password').value.trim();
+        const currentPwd = $('#input-current-password').value;
+        const newPwd = $('#input-new-password').value;
+        const confirmNewPwd = $('#input-confirm-new-password').value;
 
-        const isCurrentValid = await verifyPassword(currentPwd);
-        if (!isCurrentValid) {
-          showToast('❌ Mật khẩu hiện tại không chính xác!', 'danger');
-          $('#input-current-password').focus();
-          return;
-        }
-
-        if (newPwd.length < 4) {
-          showToast('⚠️ Mật khẩu mới phải có ít nhất 4 ký tự!', 'warning');
+        if (newPwd.length < MIN_PASSWORD_LENGTH) {
+          showToast(`⚠️ Mật khẩu mới phải có ít nhất ${MIN_PASSWORD_LENGTH} ký tự!`, 'warning');
           $('#input-new-password').focus();
           return;
         }
-
         if (newPwd !== confirmNewPwd) {
           showToast('⚠️ Mật khẩu mới và xác nhận mật khẩu không khớp nhau!', 'warning');
           $('#input-confirm-new-password').focus();
           return;
         }
+        if (newPwd === currentPwd) {
+          showToast('⚠️ Mật khẩu mới phải khác mật khẩu hiện tại!', 'warning');
+          return;
+        }
 
-        // Băm mật khẩu mới bằng SHA-256 có muối trước khi lưu vào CSDL
-        const hashedNewPwd = await hashPassword(newPwd);
+        if (isCloudMode()) {
+          if (!authState.isAdmin || !authState.email) {
+            showToast('Vui lòng đăng nhập trước khi đổi mật khẩu!', 'warning');
+            return;
+          }
+          const { error: reauthErr } = await db.cloudClient.auth.signInWithPassword({ email: authState.email, password: currentPwd });
+          if (reauthErr) {
+            showToast('❌ Mật khẩu hiện tại không chính xác!', 'danger');
+            $('#input-current-password').focus();
+            return;
+          }
+          const { error: updErr } = await db.cloudClient.auth.updateUser({ password: newPwd });
+          if (updErr) {
+            showToast('❌ Không đổi được mật khẩu: ' + (updErr.message || ''), 'danger');
+            return;
+          }
+          formChangePwd.reset();
+          showToast('🎉 Đã đổi mật khẩu tài khoản Thủ kho thành công!', 'success');
+          return;
+        }
+
+        const isCurrentValid = await verifyLocalPassword(currentPwd);
+        if (!isCurrentValid) {
+          showToast('❌ Mật khẩu hiện tại không chính xác!', 'danger');
+          $('#input-current-password').focus();
+          return;
+        }
         const data = db.getData();
         if (!data.settings.security) data.settings.security = {};
-        data.settings.security.passwordHash = hashedNewPwd;
+        data.settings.security.passwordHash = await makePasswordRecord(newPwd);
         db.save();
-        db.triggerCloudAutoSync();
-
         formChangePwd.reset();
-        showToast('🎉 Đã cập nhật mật khẩu mới thành công! Mật khẩu được mã hóa an toàn.', 'success');
+        showToast('🎉 Đã cập nhật mật khẩu mới thành công!', 'success');
       };
     }
   }
@@ -7976,47 +8293,16 @@ if (typeof module !== "undefined" && module.exports) {
   // Initialize App
   async function startApp() {
     db.init();
-    const justConnectedFromUrl = db.handleUrlCloudAutoConnect();
+    db.handleUrlCloudAutoConnect();
 
     updateCategoryDropdowns();
     updateDepartmentDropdowns();
     loadSettingsView();
     setupEventListeners();
-    initLockScreen();
     renderCurrentView();
     updateGlobalAlertBadge();
-
-    // Auto initialize cloud sync if configured
-    const cloudCfg = db.getData().settings?.cloudSync;
-    if (cloudCfg && cloudCfg.enabled && cloudCfg.supabaseUrl && cloudCfg.supabaseKey) {
-      const ok = db.initCloud();
-      if (ok) {
-        updateCloudStatusUI('syncing', 'Đang đồng bộ...');
-        db.setupRealtimeSubscription(() => {
-          renderCurrentView();
-          updateGlobalAlertBadge();
-          showToast('☁️ Dữ liệu vừa được cập nhật từ thiết bị khác!', 'info');
-        });
-        try {
-          const res = await db.pullFromCloud();
-          if (res) {
-            updateCloudStatusUI('online');
-            renderCurrentView();
-            updateGlobalAlertBadge();
-            if (justConnectedFromUrl) {
-              showToast('🟢 Đã kết nối Đám Mây và kéo dữ liệu mới nhất!', 'success');
-            }
-          } else {
-            updateCloudStatusUI('online');
-          }
-        } catch (err) {
-          console.warn('Lỗi pull cloud:', err);
-          updateCloudStatusUI('error', 'Lỗi kết nối đám mây');
-        }
-      }
-    } else {
-      updateCloudStatusUI('offline');
-    }
+    updateCloudStatusUI();
+    await initLockScreen();
   }
 
   if (document.readyState === 'loading') {
