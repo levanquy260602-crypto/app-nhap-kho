@@ -112,7 +112,7 @@
     var reqBtn = document.getElementById('btn-lock-open-requisition');
     if (reqBtn) reqBtn.textContent = 'Khoa / Phòng gửi phiếu đề xuất lãnh hàng';
     var notice = document.querySelector('.lock-security-notice');
-    if (notice) notice.textContent = 'Đăng nhập dành cho Thủ kho và Ban Giám đốc. Khoa / Phòng gửi phiếu đề xuất không cần đăng nhập.';
+    if (notice) notice.textContent = 'Đăng nhập dành cho Thủ kho và Ban Giám đốc. Khoa / Phòng xem tồn kho và gửi phiếu đề xuất không cần đăng nhập.';
     var footer = document.querySelector('.lock-card-footer span');
     if (footer) footer.textContent = 'Dữ liệu được bảo vệ, chỉ tài khoản được cấp quyền mới truy cập được';
   }

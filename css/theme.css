@@ -305,3 +305,23 @@ html body .lock-card-footer { background: #f6f8fb !important; border-top: 1px so
   html body .master-topbar { border-bottom: 0; }
 }
 html body input[type="checkbox"], html body input[type="radio"] { accent-color: var(--ink) !important; }
+html body .modal-header[style*="gradient"] { background: var(--ink) !important; border-bottom: 3px solid var(--seal) !important; }
+html body .modal-header[style*="gradient"] .btn { background: transparent !important; color: #fff !important; border-color: rgba(255,255,255,.5) !important; }
+html body #btn-lock-open-public-stock {
+  background: transparent !important; border: 1px solid transparent !important; color: var(--ink) !important;
+  font-size: 14px !important; font-weight: 600 !important; padding: 10px !important; width: 100% !important;
+  text-decoration: underline; text-underline-offset: 3px; border-radius: 4px !important;
+}
+html body #btn-lock-open-public-stock:hover { background: var(--ink-soft) !important; }
+@media (max-width: 768px) {
+  html body #modal-public-stock .modal-container { max-height: 92vh; }
+  html body #modal-public-stock .modal-footer-actions { display: grid; grid-template-columns: 1fr; gap: 6px; width: 100%; }
+}
+html body .modal-header[style*="gradient"] h3, html body .modal-header[style*="gradient"] small { color: #fff !important; }
+html body #lock-email-input, html body #lock-password-input { text-transform: none !important; letter-spacing: 0 !important; font-family: var(--font-sans) !important; }
+html body #lock-email-input::placeholder, html body #lock-password-input::placeholder { letter-spacing: 0 !important; text-transform: none !important; }
+@media (max-width: 768px) {
+  html body #modal-public-stock th:nth-child(1), html body #modal-public-stock td:nth-child(1),
+  html body #modal-public-stock th:nth-child(3), html body #modal-public-stock td:nth-child(3) { display: none; }
+  html body #modal-public-stock td:nth-child(2) { font-size: 13px; }
+}

@@ -304,6 +304,9 @@
         <button type="button" id="btn-lock-open-requisition" onclick="if(window.openCreateRequisitionModal) window.openCreateRequisitionModal();" class="btn btn-outline btn-block" style="margin-top: 12px; font-size: 13px; font-weight: 700; color: #0f766e; border-color: #99f6e4; background: #f0fdfa; padding: 10px; border-radius: 8px;">
           📝 Khoa / Phòng Đăng Ký Lãnh Vật Tư & VPP
         </button>
+        <button type="button" id="btn-lock-open-public-stock" class="btn btn-outline btn-block" style="margin-top: 8px; font-size: 13px; font-weight: 700; padding: 10px; border-radius: 8px;">
+          Xem tồn kho hiện có
+        </button>
         <div class="lock-security-notice" style="margin-top: 14px; padding: 10px 14px; background: rgba(15, 118, 110, 0.05); border: 1px dashed #99f6e4; border-radius: 8px; font-size: 12px; color: #0f766e; text-align: center; line-height: 1.45;">
           🛡️ <em>Khu vực quản trị dành riêng cho Thủ kho. Cán bộ các Khoa / Phòng gửi đề xuất lãnh vật tư vui lòng nhấn nút màu xanh ngọc ở trên (không cần mật khẩu).</em>
         </div>
@@ -1431,7 +1434,8 @@
             </div>
             <div class="form-group">
               <label class="form-label">Định Mức Tồn Tối Thiểu</label>
-              <input type="number" class="form-control" id="item-min-stock" min="0" value="5" required>
+              <input type="number" class="form-control" id="item-min-stock" min="0" step="any" placeholder="Để trống = không cảnh báo">
+              <small class="text-muted" style="font-size: 11.5px;">Chỉ khi điền số ở đây, hệ thống mới cảnh báo lúc tồn kho xuống dưới mức này.</small>
             </div>
 
             <div class="form-group col-span-3">
@@ -2072,6 +2076,56 @@
     </div>
   </div>
 
+
+  <!-- MODAL: TỒN KHO CÔNG KHAI CHO KHOA / PHÒNG (CHỈ XEM) -->
+  <div class="modal-overlay" id="modal-public-stock">
+    <div class="modal-container" style="max-width: 920px; width: 100%;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0f766e 0%, #0284c7 100%); color: white;">
+        <div>
+          <h3 style="margin: 0;">Tồn kho hiện có</h3>
+          <small id="public-stock-subtitle" style="opacity: .85;">Số lượng còn hạn sử dụng, cập nhật theo thời gian thực</small>
+        </div>
+        <button type="button" class="btn btn-outline btn-icon" id="btn-close-public-stock" aria-label="Đóng">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px 20px;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+          <input type="search" class="form-control" id="public-stock-search" placeholder="Tìm theo tên hoặc mã hàng..." style="flex: 1 1 240px;">
+          <select class="form-control" id="public-stock-wh" style="flex: 0 1 200px;">
+            <option value="ALL">Tất cả kho</option>
+            <option value="CHEMICAL">Kho vật tư</option>
+            <option value="OFFICE">Kho văn phòng phẩm</option>
+          </select>
+          <select class="form-control" id="public-stock-filter" style="flex: 0 1 160px;">
+            <option value="ALL">Tất cả</option>
+            <option value="IN">Còn hàng</option>
+            <option value="OUT">Đã hết</option>
+          </select>
+        </div>
+        <div class="table-responsive" style="max-height: 60vh; overflow: auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Mã hàng</th>
+                <th>Tên hàng</th>
+                <th>Kho</th>
+                <th class="text-right">Tồn còn hạn</th>
+                <th>ĐVT</th>
+              </tr>
+            </thead>
+            <tbody id="public-stock-tbody"></tbody>
+          </table>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin: 10px 0 0;">Hóa chất Độc bảng A và Tiền chất ma túy không hiển thị ở đây; liên hệ Thủ kho khi cần.</p>
+      </div>
+      <div class="modal-footer">
+        <div class="modal-footer-summary"><span id="public-stock-count" style="font-size: 12.5px; color: var(--text-muted);"></span></div>
+        <div class="modal-footer-actions">
+          <button type="button" class="btn btn-outline" id="btn-close-public-stock-2">Đóng</button>
+          <button type="button" class="btn btn-primary" id="btn-public-stock-to-req">Lập phiếu đề xuất lãnh hàng</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div class="toast-container" id="toast-container"></div>
 

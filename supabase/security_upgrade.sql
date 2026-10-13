@@ -188,7 +188,7 @@ CREATE TRIGGER trg_pr_rate_limit
   FOR EACH ROW EXECUTE FUNCTION public.pr_rate_limit();
 
 -- ---------------------------------------------------------------------
--- 5. DANH SÁCH HÀNG CÒN TỒN CHO FORM ĐỀ XUẤT (chỉ tên, ĐVT, số lượng)
+-- 5. DANH SÁCH TỒN KHO CÔNG KHAI CHO KHOA / PHÒNG (chỉ tên, ĐVT, số lượng còn hạn)
 --    Không lộ giá, số lô, nhà cung cấp, vụ án, lịch sử nhập xuất.
 --    Hóa chất Độc bảng A và Tiền chất ma túy KHÔNG hiện ra ngoài.
 -- ---------------------------------------------------------------------
@@ -208,13 +208,15 @@ AS $$
     CROSS JOIN LATERAL jsonb_array_elements(
       CASE WHEN jsonb_typeof(fi.data -> 'items') = 'array' THEN fi.data -> 'items' ELSE '[]'::jsonb END) it
     CROSS JOIN LATERAL (
-      SELECT COALESCE(SUM(CASE WHEN (b ->> 'quantity') ~ '^-?[0-9]+(\.[0-9]+)?$'
+      SELECT COALESCE(SUM(CASE WHEN (b ->> 'quantity') ~ '^-?[0-9]+([.][0-9]+)?$'
                                THEN (b ->> 'quantity')::NUMERIC ELSE 0 END), 0) AS qty
         FROM jsonb_array_elements(
           CASE WHEN jsonb_typeof(it -> 'batches') = 'array' THEN it -> 'batches' ELSE '[]'::jsonb END) b
+       -- Không tính lô đã hết hạn (lô không ghi hạn coi như còn hạn)
+       WHERE NOT (COALESCE(b ->> 'expiryDate', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                  AND (b ->> 'expiryDate') < to_char(CURRENT_DATE, 'YYYY-MM-DD'))
     ) q
    WHERE fi.id = 'current_database'
-     AND q.qty > 0
      AND COALESCE(it ->> 'hazardLevel', '') NOT ILIKE '%bảng A%'
      AND COALESCE(it ->> 'hazardLevel', '') NOT ILIKE '%tiền chất%';
 $$;

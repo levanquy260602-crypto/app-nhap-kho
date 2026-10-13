@@ -2049,7 +2049,7 @@ if (typeof module !== "undefined" && module.exports) {
 
     createStockOutTransaction(transaction) {
       const data = this.getData();
-      transaction.id = `TR-OUT-${Date.now()}`;
+      transaction.id = `TR-OUT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       transaction.type = 'OUT';
       transaction.code = transaction.code || `PX-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
       transaction.createdAt = new Date().toISOString();
@@ -2141,66 +2141,101 @@ if (typeof module !== "undefined" && module.exports) {
       return newReq;
     }
 
+    // Lô còn dùng được: còn hàng và CHƯA hết hạn (lô không ghi hạn coi như còn hạn)
+    getUsableBatches(item, onDate = null) {
+      const today = onDate || new Date().toISOString().slice(0, 10);
+      return (item && item.batches ? item.batches : [])
+        .filter(b => Number(b.quantity || 0) > 0)
+        .filter(b => {
+          const exp = String(b.expiryDate || '');
+          return !/^\d{4}-\d{2}-\d{2}$/.test(exp) || exp >= today;
+        })
+        .sort((a, b) => String(a.expiryDate || '9999').localeCompare(String(b.expiryDate || '9999')));
+    }
+
+    getUsableStock(item) {
+      return this.getUsableBatches(item).reduce((sum, b) => sum + Number(b.quantity || 0), 0);
+    }
+
+    // Kiểm tra trước khi duyệt: trả về danh sách mặt hàng không đủ tồn còn hạn
+    checkRequisitionStock(req) {
+      const data = this.getData();
+      const need = {};
+      (req.items || []).forEach(ri => {
+        const item = data.items.find(i => i.id === ri.itemId || (ri.itemCode && i.code === ri.itemCode));
+        const key = item ? item.id : `?${ri.itemName}`;
+        need[key] = need[key] || { item, name: item ? item.name : ri.itemName, unit: item ? item.unit : ri.unit, qty: 0 };
+        need[key].qty += Number(ri.quantity || 0);
+      });
+      return Object.values(need)
+        .map(n => ({ ...n, available: n.item ? this.getUsableStock(n.item) : 0 }))
+        .filter(n => !n.item || n.available < n.qty)
+        .map(n => ({ name: n.name, unit: n.unit, requested: n.qty, available: n.available }));
+    }
+
     approveRequisition(id, deliverer = 'Cử nhân Lê Văn Quý') {
       const data = this.getData();
       data.requisitions = data.requisitions || [];
       const req = data.requisitions.find(r => r.id === id);
       if (!req || req.status === 'APPROVED') return null;
 
-      // Create Stock-Out transaction
-      const stockOutItems = [];
-      let totalAmount = 0;
+      // 1. Không đủ hàng còn hạn -> không cho duyệt (tránh xuất "khống" làm lệch sổ)
+      const shortages = this.checkRequisitionStock(req);
+      if (shortages.length > 0) return { error: 'INSUFFICIENT_STOCK', shortages };
 
+      // 2. Phân bổ theo FEFO, chỉ lấy lô còn hạn; mỗi lô một dòng trên phiếu xuất
+      const linesByWarehouse = {};
       req.items.forEach(reqItem => {
-        const item = data.items.find(i => i.id === reqItem.itemId || i.code === reqItem.itemCode || i.name === reqItem.itemName);
-        let unitPrice = 0;
-        let lotNumber = 'LÔ-XUẤT';
-        let expiryDate = '---';
-
-        if (item && item.batches && item.batches.length > 0) {
-          const availBatch = item.batches.find(b => b.quantity > 0) || item.batches[0];
-          unitPrice = availBatch.unitPrice || 0;
-          lotNumber = availBatch.lotNumber || 'LÔ-XUẤT';
-          expiryDate = availBatch.expiryDate || '---';
+        const item = data.items.find(i => i.id === reqItem.itemId || (reqItem.itemCode && i.code === reqItem.itemCode));
+        let remaining = Number(reqItem.quantity || 0);
+        for (const batch of this.getUsableBatches(item)) {
+          if (remaining <= 0) break;
+          const take = Math.min(Number(batch.quantity), remaining);
+          remaining -= take;
+          const unitPrice = Number(batch.unitPrice || 0);
+          const wh = item.warehouseId === 'OFFICE' ? 'OFFICE' : 'CHEMICAL';
+          (linesByWarehouse[wh] = linesByWarehouse[wh] || []).push({
+            itemId: item.id,
+            itemCode: item.code,
+            itemName: item.name,
+            unit: item.unit || reqItem.unit || 'Cái',
+            lotNumber: batch.lotNumber || '',
+            expiryDate: batch.expiryDate || '---',
+            quantity: take,
+            unitPrice,
+            amount: take * unitPrice,
+            notes: reqItem.notes || ''
+          });
         }
-
-        const amount = (reqItem.quantity || 1) * unitPrice;
-        totalAmount += amount;
-
-        stockOutItems.push({
-          itemId: reqItem.itemId || (item ? item.id : ''),
-          itemCode: reqItem.itemCode || (item ? item.code : ''),
-          itemName: reqItem.itemName,
-          unit: reqItem.unit || (item ? item.unit : 'Cái'),
-          lotNumber,
-          expiryDate,
-          quantity: reqItem.quantity,
-          unitPrice,
-          amount,
-          notes: reqItem.notes || ''
-        });
       });
 
-      const tr = this.createStockOutTransaction({
-        warehouseId: req.warehouseId,
-        date: new Date().toISOString().slice(0, 10),
-        departmentId: req.departmentId,
-        departmentName: req.departmentName,
-        receiver: req.requester,
-        deliverer: deliverer,
-        reason: `Cấp phát theo phiếu đề xuất ${req.code}: ${req.reason || ''}`,
-        totalAmount,
-        items: stockOutItems
+      // 3. Mỗi kho một phiếu xuất riêng (Kho Vật tư / Kho VPP)
+      const today = new Date().toISOString().slice(0, 10);
+      const baseCode = `PX-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+      const transactions = Object.keys(linesByWarehouse).map((wh, idx) => {
+        const items = linesByWarehouse[wh];
+        return this.createStockOutTransaction({
+          code: `${baseCode}${Object.keys(linesByWarehouse).length > 1 ? '-' + (idx + 1) : ''}`,
+          warehouseId: wh,
+          date: today,
+          departmentId: req.departmentId,
+          departmentName: req.departmentName,
+          receiver: req.requester,
+          deliverer: deliverer,
+          reason: `Cấp phát theo phiếu đề xuất ${req.code}: ${req.reason || ''}`,
+          totalAmount: items.reduce((s, l) => s + l.amount, 0),
+          items
+        });
       });
 
       req.status = 'APPROVED';
       req.approvedAt = new Date().toISOString();
-      req.stockOutCode = tr.code;
-      req.stockOutId = tr.id;
+      req.stockOutCode = transactions.map(t => t.code).join(', ');
+      req.stockOutId = transactions.map(t => t.id).join(',');
 
       this.save();
       this.triggerCloudAutoSync();
-      return { requisition: req, transaction: tr };
+      return { requisition: req, transaction: transactions[0], transactions };
     }
 
     rejectRequisition(id, reason = 'Không đủ tồn kho hoặc chưa phù hợp') {
@@ -2271,6 +2306,11 @@ if (typeof module !== "undefined" && module.exports) {
       return true;
     }
 
+    // Chỉ cảnh báo dưới định mức khi Thủ kho đã tự đặt định mức cho mặt hàng đó
+    hasMinStockSetting(item) {
+      return !!(item && item.minStockSet === true && Number(item.minStock) > 0);
+    }
+
     getAlerts(warehouseId = null) {
       const items = this.getItems(warehouseId);
       const now = new Date();
@@ -2281,7 +2321,7 @@ if (typeof module !== "undefined" && module.exports) {
       items.forEach(item => {
         const totalQty = (item.batches || []).reduce((acc, b) => acc + (Number(b.quantity) || 0), 0);
 
-        if (totalQty < item.minStock) {
+        if (this.hasMinStockSetting(item) && totalQty < Number(item.minStock)) {
           lowStockList.push({
             item,
             totalQty,
@@ -3895,7 +3935,7 @@ if (typeof module !== "undefined" && module.exports) {
       }
     });
 
-    const isLowStock = totalQty < item.minStock;
+    const isLowStock = db.hasMinStockSetting(item) && totalQty < Number(item.minStock);
     return { totalQty, hasExpired, hasExpiringSoon, minDaysLeft, isLowStock };
   }
 
@@ -4209,7 +4249,9 @@ if (typeof module !== "undefined" && module.exports) {
             <div style="${stockDisplayClass}">
               <span style="font-size: 15px;">${formatNumber(status.totalQty)}</span> ${item.unit}
             </div>
-            <small class="text-muted">Min: ${item.minStock}</small>
+            ${db.hasMinStockSetting(item)
+              ? `<small class="text-muted">Định mức: ${item.minStock}</small>`
+              : `<small><a href="javascript:void(0)" class="link-set-min" data-id="${item.id}" style="color: var(--text-muted); text-decoration: underline;">Đặt định mức</a></small>`}
             ${status.isLowStock ? `<br><span class="tag tag-danger" style="font-size: 10px;">Dưới định mức</span>` : ''}
           </td>
           <td class="text-center">
@@ -4696,6 +4738,12 @@ if (typeof module !== "undefined" && module.exports) {
     $$('.btn-edit-item').forEach(btn => {
       btn.onclick = () => openItemModal(btn.getAttribute('data-id'));
     });
+    $$('.link-set-min').forEach(a => {
+      a.onclick = () => {
+        openItemModal(a.getAttribute('data-id'));
+        setTimeout(() => { const f = $('#item-min-stock'); if (f) { f.focus(); f.scrollIntoView({ block: 'center' }); } }, 150);
+      };
+    });
 
     $$('.btn-delete-item').forEach(btn => {
       btn.onclick = () => {
@@ -5059,10 +5107,11 @@ if (typeof module !== "undefined" && module.exports) {
       $('#item-packing').value = item.packingSpec || '';
       $('#item-location').value = item.location || '';
       $('#item-storage').value = item.storageCondition || '';
-      $('#item-min-stock').value = item.minStock || 5;
+      $('#item-min-stock').value = db.hasMinStockSetting(item) ? item.minStock : '';
       $('#item-notes').value = item.notes || '';
     } else {
       $('#modal-item-title').textContent = 'Thêm Mặt Hàng / Hóa Chất Mới';
+      $('#item-min-stock').value = '';
       $('#item-id').value = '';
       $('#item-code').value = '';
     }
@@ -6065,7 +6114,7 @@ if (typeof module !== "undefined" && module.exports) {
       if (!warehouseId || warehouseId === 'ALL') return list;
       return list.filter(it => it.warehouseId === warehouseId);
     }
-    return db.getItems(warehouseId);
+    return db.getItems(warehouseId).map(it => ({ ...it, batches: db.getUsableBatches(it) }));
   }
   function getReqSourceItemById(id) {
     if (isPublicRequisitionMode()) return (publicStockCache || []).find(it => it.id === id) || null;
@@ -6076,6 +6125,65 @@ if (typeof module !== "undefined" && module.exports) {
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+
+  // ---------- Khoa / Phòng xem tồn kho (chỉ xem) ----------
+  let publicStockView = [];
+  function renderPublicStockTable() {
+    const tbody = $('#public-stock-tbody');
+    if (!tbody) return;
+    const q = ($('#public-stock-search')?.value || '').trim().toLocaleLowerCase('vi');
+    const wh = $('#public-stock-wh')?.value || 'ALL';
+    const f = $('#public-stock-filter')?.value || 'ALL';
+    const rows = publicStockView.filter(it => {
+      const qty = (it.batches || []).reduce((sum, b) => sum + Number(b.quantity || 0), 0);
+      it._qty = qty;
+      if (wh !== 'ALL' && it.warehouseId !== wh) return false;
+      if (f === 'IN' && qty <= 0) return false;
+      if (f === 'OUT' && qty > 0) return false;
+      if (q && !(`${it.code} ${it.name}`.toLocaleLowerCase('vi').includes(q))) return false;
+      return true;
+    }).sort((a, b) => String(a.name).localeCompare(String(b.name), 'vi'));
+    tbody.innerHTML = rows.length ? rows.map(it => `
+      <tr>
+        <td class="font-mono">${escapeAttr(it.code)}</td>
+        <td><strong>${escapeAttr(it.name)}</strong></td>
+        <td><span class="tag ${it.warehouseId === 'CHEMICAL' ? 'tag-chemical' : 'tag-office'}">${it.warehouseId === 'CHEMICAL' ? 'Vật tư' : 'VPP'}</span></td>
+        <td class="text-right font-bold" style="color: ${it._qty > 0 ? 'var(--text-main)' : 'var(--danger)'};">${it._qty > 0 ? formatNumber(it._qty) : 'Hết hàng'}</td>
+        <td>${escapeAttr(it.unit)}</td>
+      </tr>`).join('') : `<tr><td colspan="5" class="text-center text-muted" style="padding: 24px;">Không tìm thấy mặt hàng phù hợp.</td></tr>`;
+    const inStock = publicStockView.filter(it => (it.batches || []).some(b => Number(b.quantity) > 0)).length;
+    const cnt = $('#public-stock-count');
+    if (cnt) cnt.textContent = `Đang hiển thị ${rows.length} / ${publicStockView.length} mặt hàng (${inStock} mặt hàng còn hàng)`;
+  }
+
+  async function openPublicStockModal() {
+    const modal = $('#modal-public-stock');
+    if (!modal) return;
+    if (isPublicRequisitionMode()) {
+      showToast('Đang tải tồn kho...', 'info');
+      const list = await db.fetchPublicStock();
+      if (!list) {
+        showToast('Không tải được tồn kho. Vui lòng kiểm tra Internet rồi thử lại!', 'danger');
+        return;
+      }
+      publicStockCache = list;
+    }
+    publicStockView = getReqSourceItems(null);
+    renderPublicStockTable();
+    modal.classList.add('open');
+    modal.style.display = 'flex';
+    modal.style.zIndex = '10000000';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    modal.style.pointerEvents = 'auto';
+  }
+  function closePublicStockModal() {
+    const modal = $('#modal-public-stock');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.style.display = 'none';
+  }
+  window.openPublicStockModal = openPublicStockModal;
 
   async function openCreateRequisitionModal() {
     const modal = $('#modal-create-requisition');
@@ -6306,7 +6414,7 @@ if (typeof module !== "undefined" && module.exports) {
 
     req.items.forEach((it, idx) => {
       const dbItem = db.getItemById(it.itemId) || db.getItems(null).find(i => i.id === it.itemId || i.code === it.itemCode || i.name === it.itemName);
-      const currentStock = dbItem ? (dbItem.batches || []).reduce((sum, b) => sum + Number(b.quantity || 0), 0) : 0;
+      const currentStock = dbItem ? db.getUsableStock(dbItem) : 0;
       const rawUnit = it.unit || (dbItem ? dbItem.unit : 'Cái');
       const cleanUnit = (rawUnit.length > 8) ? (rawUnit.slice(0, 6) + '..') : rawUnit;
 
@@ -6614,6 +6722,14 @@ if (typeof module !== "undefined" && module.exports) {
     if ($('#btn-quick-create-requisition')) {
       $('#btn-quick-create-requisition').onclick = () => openCreateRequisitionModal();
     }
+    if ($('#btn-lock-open-public-stock')) $('#btn-lock-open-public-stock').onclick = () => openPublicStockModal();
+    if ($('#btn-close-public-stock')) $('#btn-close-public-stock').onclick = closePublicStockModal;
+    if ($('#btn-close-public-stock-2')) $('#btn-close-public-stock-2').onclick = closePublicStockModal;
+    if ($('#btn-public-stock-to-req')) $('#btn-public-stock-to-req').onclick = () => { closePublicStockModal(); openCreateRequisitionModal(); };
+    ['#public-stock-search', '#public-stock-wh', '#public-stock-filter'].forEach(sel => {
+      const el = $(sel);
+      if (el) el.oninput = el.onchange = renderPublicStockTable;
+    });
     if ($('#btn-lock-open-requisition')) {
       $('#btn-lock-open-requisition').onclick = () => openCreateRequisitionModal();
     }
@@ -6773,14 +6889,23 @@ if (typeof module !== "undefined" && module.exports) {
 
         if (confirm(`Bạn có chắc chắn muốn PHÊ DUYỆT phiếu đề xuất ${req.code} của ${req.departmentName}? Hệ thống sẽ tự động trừ tồn kho và tạo Phiếu Xuất Kho.`)) {
           const res = db.approveRequisition(currentViewingRequisitionId, db.getData().settings?.storekeeper || 'Cử nhân Lê Văn Quý');
+          if (res && res.error === 'INSUFFICIENT_STOCK') {
+            const lines = res.shortages.map(sh => `- ${sh.name}: xin ${sh.requested} ${sh.unit || ''}, còn hạn trong kho ${sh.available}`).join('\n');
+            alert(`Chưa thể duyệt phiếu ${req.code} vì không đủ hàng còn hạn sử dụng:\n\n${lines}\n\n(Lô đã hết hạn không được tính.) Bạn có thể Từ chối phiếu và đề nghị Khoa / Phòng gửi lại với số lượng phù hợp, hoặc nhập thêm hàng rồi duyệt.`);
+            return;
+          }
           if (res) {
             $('#modal-detail-requisition').classList.remove('open');
-            showToast(`🎉 Đã phê duyệt và xuất kho thành công theo phiếu ${req.code}!`, 'success');
+            const codes = res.transactions.map(t => t.code).join(', ');
+            showToast(`Đã phê duyệt phiếu ${req.code} và lập phiếu xuất ${codes}.`, 'success');
             renderCurrentView();
             updateRequisitionsBadge();
 
-            if (confirm(`Đã lập Phiếu Xuất Kho (${res.transaction.code}). Bạn có muốn in Phiếu Xuất Kho A4 ngay để ký bàn giao?`)) {
-              printStockOutReceipt(res.transaction, db.getData().settings);
+            const msg = res.transactions.length > 1
+              ? `Đã lập ${res.transactions.length} Phiếu Xuất Kho (${codes}) - mỗi kho một phiếu. Bạn có muốn in ngay để ký bàn giao?`
+              : `Đã lập Phiếu Xuất Kho (${codes}). Bạn có muốn in Phiếu Xuất Kho A4 ngay để ký bàn giao?`;
+            if (confirm(msg)) {
+              res.transactions.forEach(t => printStockOutReceipt(t, db.getData().settings));
             }
           } else {
             showToast('Không thể phê duyệt phiếu này (có thể đã được duyệt trước đó)!', 'warning');
@@ -6953,7 +7078,8 @@ if (typeof module !== "undefined" && module.exports) {
               name: itemName,
               category: wh === 'CHEMICAL' ? 'Hóa chất phân tích độc chất & Sắc ký' : 'Vật phẩm phục vụ phòng ban',
               unit: unit,
-              minStock: 5,
+              minStock: 0,
+              minStockSet: false,
               hazardLevel: 'Thường',
               storageCondition: 'Nhiệt độ phòng'
             });
@@ -7053,6 +7179,7 @@ if (typeof module !== "undefined" && module.exports) {
         location: $('#item-location').value.trim(),
         storageCondition: $('#item-storage').value.trim(),
         minStock: Number($('#item-min-stock').value) || 0,
+        minStockSet: Number($('#item-min-stock').value) > 0,
         notes: $('#item-notes').value.trim()
       };
 
@@ -7135,7 +7262,8 @@ if (typeof module !== "undefined" && module.exports) {
             name: customName,
             category: wh === 'CHEMICAL' ? 'Hóa chất phân tích độc chất & Sắc ký' : 'Vật phẩm phục vụ phòng ban',
             unit: unit,
-            minStock: 5,
+            minStock: 0,
+            minStockSet: false,
             hazardLevel: 'Thường',
             storageCondition: 'Nhiệt độ phòng'
           });
