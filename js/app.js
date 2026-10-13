@@ -2306,6 +2306,34 @@ if (typeof module !== "undefined" && module.exports) {
       return true;
     }
 
+    // Sửa dữ liệu cũ bị lỗi nhập Excel: ĐVT bị ghi thành tên hàng
+    repairUnitsEqualToName() {
+      const data = this.getData();
+      const norm = v => String(v || '').trim().toLocaleLowerCase('vi');
+      const catalog = new Map(this.getItemCatalog().map(c => [String(c.code || '').toUpperCase(), c]));
+      let fixed = 0, guessed = [];
+      const unitOf = {};
+      (data.items || []).forEach(it => {
+        if (it.unit && norm(it.unit) === norm(it.name)) {
+          const cat = catalog.get(String(it.code || '').toUpperCase());
+          it.unit = (cat && cat.unit && norm(cat.unit) !== norm(it.name)) ? cat.unit : 'Cái';
+          if (!cat || !cat.unit) guessed.push(it.name);
+          fixed++;
+        }
+        unitOf[it.id] = it.unit;
+      });
+      const fixLine = line => {
+        if (line && line.unit && norm(line.unit) === norm(line.itemName) && unitOf[line.itemId]) {
+          line.unit = unitOf[line.itemId];
+          fixed++;
+        }
+      };
+      (data.transactions || []).forEach(tr => (tr.items || []).forEach(fixLine));
+      (data.requisitions || []).forEach(rq => (rq.items || []).forEach(fixLine));
+      if (fixed > 0) this.save();
+      return { fixed, guessed };
+    }
+
     // Chỉ cảnh báo dưới định mức khi Thủ kho đã tự đặt định mức cho mặt hàng đó
     hasMinStockSetting(item) {
       return !!(item && item.minStockSet === true && Number(item.minStock) > 0);
@@ -5306,7 +5334,7 @@ if (typeof module !== "undefined" && module.exports) {
         // Find header row (search first 5 rows)
         let headerRowIndex = -1;
         for (let r = 0; r < Math.min(6, jsonData.length); r++) {
-          const rowStr = (jsonData[r] || []).join(' ').toLowerCase();
+          const rowStr = (jsonData[r] || []).join(' ').toLowerCase().replace(/đ/g, 'd');
           const cleanStr = rowStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
           if (cleanStr.includes('ten') || cleanStr.includes('name') || cleanStr.includes('mat hang') || cleanStr.includes('hang hoa') || cleanStr.includes('vat tu')) {
             headerRowIndex = r;
@@ -5329,7 +5357,8 @@ if (typeof module !== "undefined" && module.exports) {
         };
 
         headers.forEach((h, idx) => {
-          const clean = h.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+          // Chuyển "đ" -> "d" TRƯỚC khi bỏ dấu (NFD không tách được chữ đ), nếu không cột "ĐVT" / "Đơn vị tính" sẽ không được nhận ra
+          const clean = h.replace(/đ/g, 'd').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
           if (clean.includes('ten') || clean.includes('name') || clean.includes('mathang') || clean.includes('vattu') || clean.includes('sanpham')) {
             if (colMap.name === -1) colMap.name = idx;
           } else if (clean.includes('dvt') || clean.includes('donvi') || clean.includes('unit')) {
@@ -5349,9 +5378,11 @@ if (typeof module !== "undefined" && module.exports) {
           }
         });
 
-        if (colMap.name === -1 && headers.length > 0) colMap.name = 0;
-        if (colMap.unit === -1 && headers.length > 1) colMap.unit = 1;
-        if (colMap.qty === -1 && headers.length > 2) colMap.qty = 2;
+        // Chỉ đoán vị trí cột khi vị trí đó chưa bị cột khác chiếm (tránh lấy nhầm Tên hàng làm ĐVT)
+        const usedCols = () => Object.values(colMap).filter(v => v !== -1);
+        if (colMap.name === -1 && headers.length > 0 && !usedCols().includes(0)) colMap.name = 0;
+        if (colMap.unit === -1 && headers.length > 1 && !usedCols().includes(1)) colMap.unit = 1;
+        if (colMap.qty === -1 && headers.length > 2 && !usedCols().includes(2)) colMap.qty = 2;
 
         const parsedItems = [];
         for (let r = headerRowIndex + 1; r < jsonData.length; r++) {
@@ -8116,6 +8147,12 @@ if (typeof module !== "undefined" && module.exports) {
     } else {
       updateCloudStatusUI('error', 'Lỗi kết nối đám mây');
     }
+    const unitFix = db.repairUnitsEqualToName();
+    if (unitFix.fixed > 0) {
+      await db.pushToCloud();
+      showToast(`Đã tự sửa đơn vị tính bị ghi nhầm thành tên hàng (${unitFix.fixed} dòng).` +
+        (unitFix.guessed.length ? ` ${unitFix.guessed.length} mặt hàng tạm để "Cái", vui lòng kiểm tra lại.` : ''), 'info');
+    }
     loadSettingsView();
     renderCurrentView();
     updateGlobalAlertBadge();
@@ -8345,6 +8382,7 @@ if (typeof module !== "undefined" && module.exports) {
           unlockAppScreen();
           $('#lock-error-msg') && ($('#lock-error-msg').style.display = 'none');
           showToast('🔓 Xác thực thành công!', 'success');
+          if (db.repairUnitsEqualToName().fixed > 0) showToast('Đã tự sửa đơn vị tính bị ghi nhầm thành tên hàng.', 'info');
           renderCurrentView();
         } else {
           registerFailedAttempt('⚠️ Mật khẩu không chính xác.');
