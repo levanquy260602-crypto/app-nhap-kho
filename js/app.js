@@ -6531,7 +6531,7 @@ if (typeof module !== "undefined" && module.exports) {
             <td style="width: 50%; text-align: center;">
               <span style="font-size: 11pt; text-transform: uppercase;">${parentOrg}</span><br>
               <strong style="font-size: 11.5pt; text-transform: uppercase;">${orgName}</strong><br>
-              <span style="font-size: 11pt;">Kho: ${isChem ? 'Vật Tư & Hóa Chất' : 'Văn Phòng Phẩm'}</span>
+              <span style="font-size: 11pt;">Kho: ${req.warehouseId === 'ALL' ? 'Vật Tư & Văn Phòng Phẩm' : (isChem ? 'Vật Tư & Hóa Chất' : 'Văn Phòng Phẩm')}</span>
             </td>
             <td style="width: 50%; text-align: center;">
               <strong style="font-size: 11.5pt;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br>
