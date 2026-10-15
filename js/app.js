@@ -1956,11 +1956,18 @@ if (typeof module !== "undefined" && module.exports) {
     }
 
     save() {
+      // Đánh dấu dữ liệu trên máy có thay đổi (để không bị bản trên mây kéo về ghi đè)
+      this._rev = (this._rev || 0) + 1;
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
       } catch (e) {
         console.error('Lỗi khi lưu dữ liệu:', e);
+        if (typeof showToast === 'function') showToast('Không lưu được dữ liệu trên máy (bộ nhớ trình duyệt đầy?): ' + e.message, 'danger');
       }
+    }
+
+    hasUnpushedChanges() {
+      return this.isAdminSession && (this._rev || 0) !== (this._syncedRev || 0);
     }
 
     getData() {
@@ -1979,6 +1986,55 @@ if (typeof module !== "undefined" && module.exports) {
       return data.items.find(item => item.id === id);
     }
 
+    // ID duy nhất tuyệt đối, không phụ thuộc thời gian (sửa lỗi trùng ID khi nhập hàng loạt)
+    newId(prefix, existingIds = null) {
+      const gen = () => {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+        const a = new Uint8Array(16);
+        (window.crypto || {}).getRandomValues ? window.crypto.getRandomValues(a) : a.forEach((_, i) => { a[i] = Math.floor(Math.random() * 256); });
+        return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+      };
+      let id;
+      do { id = `${prefix}-${gen()}`; } while (existingIds && existingIds.has(id));
+      return id;
+    }
+
+    static normCode(code) {
+      return String(code || '').toUpperCase().replace(/\s+/g, '');
+    }
+
+    // Tìm mặt hàng theo mã trong cùng kho (không phân biệt hoa/thường, bỏ khoảng trắng)
+    findItemByCode(warehouseId, code, excludeId = null, items = null) {
+      const key = ForensicStorage.normCode(code);
+      if (!key) return null;
+      return (items || this.getData().items || []).find(i =>
+        i.warehouseId === warehouseId && i.id !== excludeId && ForensicStorage.normCode(i.code) === key) || null;
+    }
+
+    // Mặt hàng còn được phiếu nhập / xuất / đề xuất tham chiếu?
+    getItemReferences(itemId) {
+      const data = this.getData();
+      const tx = (data.transactions || []).filter(t => (t.items || []).some(l => l.itemId === itemId));
+      const rq = (data.requisitions || []).filter(r => r.status === 'PENDING' && (r.items || []).some(l => l.itemId === itemId));
+      return { transactions: tx, requisitions: rq };
+    }
+
+    // Kiểm tra toàn vẹn: ID trùng, mã trùng trong cùng kho
+    checkIntegrity(data = null) {
+      const d = data || this.getData();
+      const seen = new Map(), dupIds = new Set(), dupCodes = [];
+      (d.items || []).forEach(i => { if (seen.has(i.id)) dupIds.add(i.id); seen.set(i.id, true); });
+      const byCode = new Map();
+      (d.items || []).forEach(i => {
+        const k = `${i.warehouseId}|${ForensicStorage.normCode(i.code)}`;
+        if (!ForensicStorage.normCode(i.code)) return;
+        if (byCode.has(k)) dupCodes.push(i.code); else byCode.set(k, i);
+      });
+      const txIds = new Set(), dupTx = [];
+      (d.transactions || []).forEach(t => { if (txIds.has(t.id)) dupTx.push(t.id); txIds.add(t.id); });
+      return { dupItemIds: [...dupIds], dupCodes: [...new Set(dupCodes)], dupTransactionIds: dupTx };
+    }
+
     saveItem(item) {
       const data = this.getData();
       const index = data.items.findIndex(i => i.id === item.id);
@@ -1987,7 +2043,7 @@ if (typeof module !== "undefined" && module.exports) {
       } else {
         if (!item.id) {
           const prefix = item.warehouseId === 'CHEMICAL' ? 'HC' : 'VPP';
-          item.id = `${prefix}-${Date.now().toString().slice(-5)}`;
+          item.id = this.newId(prefix, new Set(data.items.map(i => i.id)));
         }
         item.createdAt = new Date().toISOString();
         data.items.unshift(item);
@@ -2015,7 +2071,7 @@ if (typeof module !== "undefined" && module.exports) {
 
     createStockInTransaction(transaction) {
       const data = this.getData();
-      transaction.id = `TR-IN-${Date.now()}`;
+      transaction.id = this.newId('TR-IN');
       transaction.type = 'IN';
       transaction.createdAt = new Date().toISOString();
 
@@ -2047,9 +2103,186 @@ if (typeof module !== "undefined" && module.exports) {
       return transaction;
     }
 
+    // ======================================================================
+    // NHẬP KHO HÀNG LOẠT TỪ EXCEL - "TẤT CẢ HOẶC KHÔNG CÓ GÌ"
+    // Làm trên bản sao dữ liệu; chỉ ghi vào dữ liệu thật khi mọi dòng hợp lệ.
+    // ======================================================================
+    planStockInBatch(wh, rows, data = null) {
+      const src = data || this.getData();
+      const items = src.items || [];
+      const plan = { rows: [], errors: [], warnings: [], newCodes: new Set(), existingCodes: new Set(), unitChanges: [] };
+      const fileItems = new Map(); // khóa mã -> {name, unit, rowNo}
+      const cap = (u) => {
+        const t = String(u || '').trim();
+        if (!t) return '';
+        if (t.length > 2 && t === t.toUpperCase()) return t.charAt(0) + t.slice(1).toLowerCase();
+        return t.charAt(0).toUpperCase() + t.slice(1);
+      };
+      rows.forEach(row => {
+        const rowNo = row.rowNo;
+        if (!row.name) { plan.errors.push(`Dòng ${rowNo}: thiếu tên mặt hàng.`); return; }
+        if (!(row.quantity > 0)) { plan.errors.push(`Dòng ${rowNo} (${row.code || row.name}): số lượng "${row.rawQty}" không hợp lệ (phải là số > 0).`); return; }
+        if (row.priceError) { plan.errors.push(`Dòng ${rowNo} (${row.code || row.name}): đơn giá "${row.rawPrice}" không hợp lệ.`); return; }
+
+        let existing = null;
+        if (row.codeGiven) existing = this.findItemByCode(wh, row.code, null, items);
+        else existing = items.find(i => i.warehouseId === wh && String(i.name || '').trim().toLocaleLowerCase('vi') === row.name.trim().toLocaleLowerCase('vi')) || null;
+
+        const key = existing ? `ID:${existing.id}` : `CODE:${ForensicStorage.normCode(row.code)}`;
+        const fileUnit = cap(row.unit);
+        if (!fileUnit && !existing) { plan.errors.push(`Dòng ${rowNo} (${row.code || row.name}): thiếu Đơn vị tính.`); return; }
+
+        if (fileItems.has(key)) {
+          const f = fileItems.get(key);
+          plan.warnings.push(`Mã ${row.code || row.name} xuất hiện nhiều dòng (dòng ${f.rowNo} và ${rowNo}): số lượng được cộng dồn.`);
+          if (fileUnit && f.unit && fileUnit.toLocaleLowerCase('vi') !== f.unit.toLocaleLowerCase('vi')) {
+            plan.errors.push(`Mã ${row.code}: ĐVT không thống nhất trong file ("${f.unit}" ở dòng ${f.rowNo}, "${fileUnit}" ở dòng ${rowNo}).`);
+            return;
+          }
+        } else {
+          fileItems.set(key, { name: row.name, unit: fileUnit, rowNo });
+        }
+
+        if (existing) {
+          plan.existingCodes.add(existing.id);
+          if (fileUnit && existing.unit && fileUnit.toLocaleLowerCase('vi') !== String(existing.unit).toLocaleLowerCase('vi') &&
+              !plan.unitChanges.some(u => u.itemId === existing.id)) {
+            plan.unitChanges.push({ itemId: existing.id, code: existing.code, name: existing.name, from: existing.unit, to: fileUnit });
+          }
+        } else {
+          plan.newCodes.add(key);
+        }
+        plan.rows.push({ ...row, unit: fileUnit, existingId: existing ? existing.id : null, key });
+      });
+      return plan;
+    }
+
+    importStockInBatch({ wh, date, code, supplier, invoiceNumber, receiver, rows, updateUnits = true }) {
+      const work = JSON.parse(JSON.stringify(this.getData()));
+      const plan = this.planStockInBatch(wh, rows, work);
+      if (plan.errors.length) return { ok: false, errors: plan.errors };
+
+      const allIds = new Set(work.items.map(i => i.id));
+      const keyToItem = new Map();
+      const now = new Date().toISOString();
+      const created = [], existing = new Set();
+      const defaultCategory = wh === 'CHEMICAL' ? 'Vật tư tiêu hao xét nghiệm & BHLĐ' : 'Vật phẩm phục vụ phòng ban';
+      const cats = (WAREHOUSES[wh]?.categories || []);
+      const pickCategory = (raw) => {
+        const t = String(raw || '').trim().toLocaleLowerCase('vi');
+        if (!t) return defaultCategory;
+        return cats.find(c => c.toLocaleLowerCase('vi') === t) || cats.find(c => c.toLocaleLowerCase('vi').includes(t)) || defaultCategory;
+      };
+
+      // Đổi ĐVT các mặt hàng có sẵn theo file (nếu chọn)
+      if (updateUnits) {
+        plan.unitChanges.forEach(ch => {
+          const it = work.items.find(i => i.id === ch.itemId);
+          if (it) { it.unit = ch.to; it.updatedAt = now; }
+        });
+      }
+
+      const lines = [];
+      plan.rows.forEach(row => {
+        let item = row.existingId ? work.items.find(i => i.id === row.existingId) : keyToItem.get(row.key);
+        if (!item) {
+          let newCode = ForensicStorage.normCode(row.code);
+          // Mã tự sinh (file không có mã) trùng mã khác -> thêm hậu tố
+          let n = 2;
+          while (this.findItemByCode(wh, newCode, null, work.items)) newCode = `${ForensicStorage.normCode(row.code)}${n++}`;
+          item = {
+            id: this.newId(wh === 'CHEMICAL' ? 'HC' : 'VPP', allIds),
+            warehouseId: wh,
+            code: newCode,
+            name: row.name,
+            category: pickCategory(row.category),
+            unit: row.unit,
+            minStock: 0,
+            minStockSet: false,
+            hazardLevel: 'Thường',
+            storageCondition: 'Nhiệt độ phòng',
+            batches: [],
+            createdAt: now
+          };
+          allIds.add(item.id);
+          work.items.unshift(item);
+          created.push(item);
+          keyToItem.set(row.key, item);
+        } else if (row.existingId) {
+          existing.add(item.id);
+        }
+        if (!Array.isArray(item.batches)) item.batches = [];
+
+        const lot = row.lotNumber || 'LÔ-EXCEL';
+        const exp = row.expiryDate || '';
+        const noExp = (v) => !v || v === '---';
+        const batch = item.batches.find(b => (b.lotNumber || '') === lot && (exp ? b.expiryDate === exp : noExp(b.expiryDate)));
+        if (batch) {
+          batch.quantity = Math.round((Number(batch.quantity || 0) + row.quantity) * 1000) / 1000;
+          if (row.unitPrice) batch.unitPrice = row.unitPrice;
+        } else {
+          item.batches.push({ lotNumber: lot, expiryDate: exp || '---', quantity: row.quantity, unitPrice: row.unitPrice || 0, receivedDate: date, supplier });
+        }
+        lines.push({
+          itemId: item.id, itemCode: item.code, itemName: item.name, unit: item.unit,
+          lotNumber: lot, expiryDate: exp || '---', quantity: row.quantity,
+          unitPrice: row.unitPrice || 0, amount: Math.round(row.quantity * (row.unitPrice || 0)), notes: row.notes || ''
+        });
+      });
+
+      const tr = {
+        id: this.newId('TR-IN'),
+        type: 'IN',
+        code: code || `PN-${date.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+        warehouseId: wh, date, supplier, invoiceNumber,
+        deliverer: 'Nhập từ file Excel', receiver,
+        reason: 'Nhập kho hàng loạt từ file Excel',
+        totalAmount: lines.reduce((sum, l) => sum + l.amount, 0),
+        items: lines,
+        createdAt: now
+      };
+      work.transactions = work.transactions || [];
+      work.transactions.unshift(tr);
+
+      // Kiểm tra trước khi ghi
+      const fileQty = Math.round(rows.reduce((sum, r) => sum + r.quantity, 0) * 1000) / 1000;
+      const lineQty = Math.round(lines.reduce((sum, l) => sum + l.quantity, 0) * 1000) / 1000;
+      const integ = this.checkIntegrity(work);
+      const newIdsOk = created.every(c => work.items.filter(i => i.id === c.id).length === 1);
+      const distinctKeys = new Set(plan.rows.map(r => r.key)).size;
+      if (lineQty !== fileQty || !newIdsOk || created.length + existing.size !== distinctKeys) {
+        return { ok: false, errors: [`Kiểm tra sau xử lý không khớp (số lượng file ${fileQty}, phiếu ${lineQty}; mã mới ${created.length} + có sẵn ${existing.size} ≠ ${distinctKeys} mã trong file). Chưa ghi dữ liệu nào.`] };
+      }
+
+      this.data = work;
+      this.save();
+      return {
+        ok: true, transaction: tr,
+        report: {
+          rowsRead: rows.length, distinctCodes: distinctKeys, created: created.length, existing: existing.size,
+          totalQty: fileQty, unitChanges: updateUnits ? plan.unitChanges : [], warnings: plan.warnings,
+          preexistingDupCodes: integ.dupCodes, preexistingDupIds: integ.dupItemIds
+        }
+      };
+    }
+
+    // Xóa toàn bộ mặt hàng và phiếu của một kho (để nhập lại từ đầu)
+    wipeWarehouse(wh) {
+      const data = this.getData();
+      const ids = new Set(data.items.filter(i => i.warehouseId === wh).map(i => i.id));
+      const before = { items: ids.size, transactions: (data.transactions || []).filter(t => t.warehouseId === wh).length };
+      data.items = data.items.filter(i => i.warehouseId !== wh);
+      data.transactions = (data.transactions || [])
+        .filter(t => t.warehouseId !== wh)
+        .map(t => ({ ...t, items: (t.items || []).filter(l => !ids.has(l.itemId)) }))
+        .filter(t => (t.items || []).length > 0);
+      this.save();
+      return before;
+    }
+
     createStockOutTransaction(transaction) {
       const data = this.getData();
-      transaction.id = `TR-OUT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      transaction.id = this.newId('TR-OUT');
       transaction.type = 'OUT';
       transaction.code = transaction.code || `PX-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
       transaction.createdAt = new Date().toISOString();
@@ -2118,7 +2351,7 @@ if (typeof module !== "undefined" && module.exports) {
       const code = req.code || `DX-${new Date().getFullYear()}-${timestamp.toString().slice(-4)}`;
 
       const newReq = {
-        id: `REQ-${timestamp}`,
+        id: this.newId('REQ'),
         code,
         warehouseId: req.warehouseId || 'CHEMICAL',
         departmentId: req.departmentId || '',
@@ -2605,6 +2838,8 @@ if (typeof module !== "undefined" && module.exports) {
 
     setAdminSession(isAdmin) {
       this.isAdminSession = !!isAdmin;
+      // Mốc đồng bộ: dữ liệu đang có trên máy lúc đăng nhập không tự đẩy đè lên mây
+      if (isAdmin) this._syncedRev = this._rev || 0;
     }
 
     // Bản sao dữ liệu gửi lên mây: bỏ các thông tin cấu hình riêng của từng máy
@@ -2621,10 +2856,44 @@ if (typeof module !== "undefined" && module.exports) {
       return copy;
     }
 
+    get clientId() {
+      if (!this._clientId) this._clientId = this.newId('CLIENT');
+      return this._clientId;
+    }
+
+    // Có thay đổi trên máy chưa đẩy xong lên mây?
+    hasPendingSync() {
+      return !!(this._syncTimer || this._inflight || this.bulkDepth > 0 || this.hasUnpushedChanges());
+    }
+
+    // Đẩy lên mây TUẦN TỰ: không bao giờ chạy 2 lần đẩy cùng lúc (tránh bản cũ ghi đè bản mới)
     async pushToCloud(customData = null) {
+      if (customData) return this._pushOnce(customData);
+      if (this._inflight) {
+        this._pushAgain = true;
+        return this._inflight;
+      }
+      this._inflight = (async () => {
+        let ok;
+        do {
+          this._pushAgain = false;
+          ok = await this._pushOnce();
+        } while (ok && this._pushAgain);
+        return ok;
+      })();
+      try {
+        return await this._inflight;
+      } finally {
+        this._inflight = null;
+      }
+    }
+
+    async _pushOnce(customData = null) {
       if (!this.isAdminSession) return false;
       if (!this.cloudClient && !this.initCloud()) return false;
+      const revAtStart = this._rev || 0;
       const dataToPush = this.buildCloudPayload(customData || this.data);
+      dataToPush._sync = { clientId: this.clientId, at: new Date().toISOString() };
       try {
         const payload = {
           id: 'current_database',
@@ -2636,7 +2905,9 @@ if (typeof module !== "undefined" && module.exports) {
         if (!this.data.settings.cloudSync) this.data.settings.cloudSync = {};
         this.data.settings.cloudSync.lastSyncTime = new Date().toISOString();
         this.lastPushFailed = false;
+        const unchangedDuringPush = (this._rev || 0) === revAtStart;
         this.save();
+        if (!customData && unchangedDuringPush) this._syncedRev = this._rev;
         return true;
       } catch (e) {
         this.lastPushFailed = true;
@@ -2649,6 +2920,14 @@ if (typeof module !== "undefined" && module.exports) {
     async pullFromCloud() {
       if (!this.isAdminSession) return null;
       if (!this.cloudClient && !this.initCloud()) return null;
+      if (this.bulkDepth > 0) return null;
+      // Còn thay đổi chưa đẩy -> đẩy xong rồi mới kéo, tránh bản trên mây ghi đè dữ liệu vừa nhập
+      if (this._syncTimer || this._inflight || this.hasUnpushedChanges()) {
+        clearTimeout(this._syncTimer);
+        this._syncTimer = null;
+        const ok = await this.pushToCloud();
+        if (!ok) return null;   // đẩy không được thì KHÔNG kéo về, tránh mất dữ liệu trên máy
+      }
       try {
         const { data, error } = await this.cloudClient
           .from('forensic_inventory').select('*').eq('id', 'current_database').maybeSingle();
@@ -2668,6 +2947,8 @@ if (typeof module !== "undefined" && module.exports) {
     applyCloudData(cloudData, updatedAt) {
       const autoSync = this.data?.settings?.cloudSync?.autoSync;
       this.data = cloudData;
+      delete this.data._sync;
+      this._applyingCloud = true;
       if (!this.data.settings) this.data.settings = {};
       this.data.settings.cloudSync = {
         enabled: true,
@@ -2675,6 +2956,8 @@ if (typeof module !== "undefined" && module.exports) {
         lastSyncTime: updatedAt || new Date().toISOString()
       };
       this.save();
+      this._applyingCloud = false;
+      this._syncedRev = this._rev;
     }
 
     isCloudActive() {
@@ -2714,10 +2997,15 @@ if (typeof module !== "undefined" && module.exports) {
         this.realtimeChannel = this.cloudClient
           .channel('forensic_realtime_sync')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'forensic_inventory' }, payload => {
-            if (payload.new && payload.new.data) {
-              this.applyCloudData(payload.new.data, payload.new.updated_at);
-              if (typeof onRemoteChange === 'function') onRemoteChange(this.data);
+            if (!payload.new || !payload.new.data) return;
+            const meta = payload.new.data._sync || {};
+            if (meta.clientId === this.clientId) return;          // chính máy này vừa đẩy lên
+            if (this.hasPendingSync()) {                         // máy đang có thay đổi chưa đẩy xong
+              this._remoteChangedWhileBusy = true;
+              return;
             }
+            this.applyCloudData(payload.new.data, payload.new.updated_at);
+            if (typeof onRemoteChange === 'function') onRemoteChange(this.data);
           })
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'public_requisitions' }, () => {
             if (typeof onNewPublicRequisition === 'function') onNewPublicRequisition();
@@ -2747,11 +3035,21 @@ if (typeof module !== "undefined" && module.exports) {
     }
 
     triggerCloudAutoSync() {
+      if (this.bulkDepth > 0) return;
       const cfg = this.data.settings?.cloudSync || {};
       if (this.isCloudActive() && cfg.autoSync !== false) {
-        this.pushToCloud().catch(err => console.warn('Lỗi auto sync background:', err));
+        clearTimeout(this._syncTimer);
+        this._syncTimer = setTimeout(() => {
+          this._syncTimer = null;
+          this.pushToCloud().then(ok => {
+            if (!ok && typeof this.onSyncError === 'function') this.onSyncError();
+          }).catch(err => console.warn('Lỗi auto sync background:', err));
+        }, 700);
       }
     }
+
+    beginBulk() { this.bulkDepth = (this.bulkDepth || 0) + 1; }
+    endBulk() { this.bulkDepth = Math.max(0, (this.bulkDepth || 0) - 1); }
 
     // ==========================================
     // CỔNG CÔNG KHAI CHO KHOA / PHÒNG (KHÔNG CẦN ĐĂNG NHẬP)
@@ -4777,6 +5075,13 @@ if (typeof module !== "undefined" && module.exports) {
       btn.onclick = () => {
         const id = btn.getAttribute('data-id');
         const item = db.getItemById(id);
+        const refs = db.getItemReferences(id);
+        if (refs.transactions.length || refs.requisitions.length) {
+          alert(`Không thể xóa "${item.name}" vì còn được tham chiếu bởi ${refs.transactions.length} phiếu nhập/xuất` +
+            (refs.requisitions.length ? ` và ${refs.requisitions.length} phiếu đề xuất đang chờ duyệt` : '') +
+            `.\n\nNếu cần làm lại toàn bộ kho, dùng chức năng "Xóa dữ liệu theo kho" trong Cài đặt.`);
+          return;
+        }
         if (confirm(`Bạn có chắc chắn muốn xóa mặt hàng: "${item.name}" khỏi cơ sở dữ liệu?`)) {
           db.deleteItem(id);
           showToast('Đã xóa mặt hàng thành công!');
@@ -5059,8 +5364,12 @@ if (typeof module !== "undefined" && module.exports) {
     form.reset();
 
     if ($('#batch-code')) $('#batch-code').value = '';
-    const today = new Date().toISOString().split('T')[0];
+    const nowD = new Date();
+    const today = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
     $('#batch-date').value = today;
+    if ($('#batch-date-text')) $('#batch-date-text').textContent = formatViDate(today);
+    if ($('#batch-plan-summary')) $('#batch-plan-summary').style.display = 'none';
+    if ($('#batch-update-units-wrap')) $('#batch-update-units-wrap').style.display = 'none';
     $('#batch-warehouse').value = state.currentWarehouse === 'OFFICE' ? 'OFFICE' : 'CHEMICAL';
 
     batchImportParsedItems = [];
@@ -5078,35 +5387,59 @@ if (typeof module !== "undefined" && module.exports) {
   function renderBatchImportPreview(items) {
     batchImportParsedItems = items;
     const tbody = $('#batch-preview-tbody');
-    tbody.innerHTML = '';
+    const wh = $('#batch-warehouse').value;
+    const plan = db.planStockInBatch(wh, items);
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const errRows = new Set(plan.errors.map(e => (e.match(/^Dòng (\d+)/) || [])[1]).filter(Boolean).map(Number));
+    const okRows = new Map(plan.rows.map(r => [r.rowNo, r]));
 
-    let totalQty = 0;
-    let totalAmount = 0;
-
-    items.forEach((item, idx) => {
-      totalQty += item.quantity;
-      totalAmount += item.amount;
-
-      tbody.innerHTML += `
-        <tr>
-          <td class="text-center">${idx + 1}</td>
-          <td class="font-mono font-bold" style="color: var(--primary-dark);">${item.code || '<span class="text-muted" style="font-weight: normal; font-size: 11.5px;">(Tự tạo mã)</span>'}</td>
-          <td><strong>${item.name}</strong></td>
-          <td class="text-center">${item.unit}</td>
-          <td class="text-center font-bold" style="font-size: 14px; color: var(--secondary);">${formatNumber(item.quantity)}</td>
+    let totalQty = 0, totalAmount = 0;
+    tbody.innerHTML = items.map((item, idx) => {
+      const pr = okRows.get(item.rowNo);
+      const bad = errRows.has(item.rowNo) || !pr;
+      if (!bad) { totalQty += item.quantity; totalAmount += item.quantity * item.unitPrice; }
+      const tag = bad ? '<span style="color: var(--danger); font-weight: 700;">Lỗi</span>'
+        : (pr.existingId ? '<span style="color: var(--text-muted);">Đã có trong kho - cộng tồn</span>' : '<span style="color: var(--success);">Tạo mới</span>');
+      return `
+        <tr style="${bad ? 'background: var(--danger-light);' : ''}">
+          <td class="text-center">${item.rowNo}</td>
+          <td class="font-mono font-bold">${esc(item.code)}${item.codeGiven ? '' : '<br><small class="text-muted" style="font-weight: normal;">(tự tạo mã)</small>'}</td>
+          <td><strong>${esc(item.name)}</strong><br><small>${tag}</small></td>
+          <td class="text-center">${esc(item.unit) || '<span style="color: var(--danger);">trống</span>'}</td>
+          <td class="text-center font-bold">${item.quantity > 0 ? formatNumber(item.quantity) : `<span style="color: var(--danger);">${esc(item.rawQty) || 'trống'}</span>`}</td>
           <td class="text-right">${formatCurrency(item.unitPrice)}</td>
-          <td class="text-right font-bold" style="color: var(--primary-dark);">${formatCurrency(item.amount)}</td>
-        </tr>
-      `;
-    });
+          <td class="text-right font-bold">${formatCurrency(item.quantity * item.unitPrice)}</td>
+        </tr>`;
+    }).join('');
+
+    const box = $('#batch-plan-summary');
+    const distinct = new Set(plan.rows.map(r => r.key)).size;
+    const list = (arr, max = 8) => arr.slice(0, max).map(x => `<li>${esc(x)}</li>`).join('') + (arr.length > max ? `<li>... và ${arr.length - max} mục khác</li>` : '');
+    box.style.display = 'block';
+    box.innerHTML = `
+      <div><b>Đọc được ${items.length} dòng</b> · ${distinct} mã hàng khác nhau · <b>${plan.newCodes.size}</b> tạo mới · <b>${plan.existingCodes.size}</b> đã có trong kho · tổng số lượng <b>${formatNumber(totalQty)}</b>
+      ${plan.errors.length ? ` · <b style="color: var(--danger);">${plan.errors.length} dòng lỗi</b>` : ''}</div>
+      ${plan.errors.length ? `<div style="color: var(--danger); margin-top: 4px;"><b>Phải sửa file trước khi nhập (chưa ghi dữ liệu nào):</b><ul style="margin: 2px 0 0 18px;">${list(plan.errors, 15)}</ul></div>` : ''}
+      ${plan.unitChanges.length ? `<div style="color: var(--warning-dark); margin-top: 4px;"><b>ĐVT trong file khác ĐVT đang dùng:</b><ul style="margin: 2px 0 0 18px;">${list(plan.unitChanges.map(u => `${u.code} - ${u.name}: đang là "${u.from}", file ghi "${u.to}"`))}</ul></div>` : ''}
+      ${plan.warnings.length ? `<div style="color: var(--text-muted); margin-top: 4px;"><b>Lưu ý:</b><ul style="margin: 2px 0 0 18px;">${list(plan.warnings)}</ul></div>` : ''}`;
+    const uw = $('#batch-update-units-wrap');
+    if (uw) uw.style.display = plan.unitChanges.length ? 'flex' : 'none';
 
     $('#batch-preview-count').textContent = items.length;
-    $('#batch-total-items').textContent = items.length;
+    $('#batch-total-items').textContent = distinct;
     $('#batch-total-qty').textContent = formatNumber(totalQty);
     $('#batch-total-amount').textContent = formatCurrency(totalAmount);
-    $('#btn-submit-batch-import').disabled = items.length === 0;
+    $('#btn-submit-batch-import').disabled = items.length === 0 || plan.errors.length > 0;
   }
-  
+
+  function formatViDate(iso) {
+    const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return iso || '';
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const thu = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][d.getDay()];
+    return `${thu}, ngày ${m[3]}/${m[2]}/${m[1]}`;
+  }
+
   function openItemModal(itemId = null) {
     const modal = $('#modal-item');
     const form = $('#form-item');
@@ -5271,17 +5604,18 @@ if (typeof module !== "undefined" && module.exports) {
         'Đơn Giá VNĐ (Tùy chọn)',
         'Số Lô (Tùy chọn)',
         'Hạn Dùng YYYY-MM-DD (Tùy chọn)',
-        'Ghi Chú (Tùy chọn)'
+        'Ghi Chú (Tùy chọn)',
+        'Nhóm Hàng (Tùy chọn)'
       ];
 
       const sampleData = [
         headers,
-        ['ACCO-SDI', 'Acco sắt SDI', 'Hộp', 5, 25000, 'LÔ-VPP', '', 'Văn phòng phẩm'],
-        ['B-KIM-10', 'Bấm kim số 10', 'Cái', 13, 18000, 'LÔ-VPP', '', 'Văn phòng phẩm'],
-        ['BC-QUET-SAN', 'Bàn chải quét sàn', 'Cây', 3, 45000, 'LÔ-VT', '', 'Vật dụng vệ sinh'],
-        ['GT-NIT', 'Găng tay y tế Nitrile không bột', 'Hộp', 50, 85000, 'LOT-2026-01', '2028-12-31', 'Vật tư tiêu hao'],
-        ['CON-90', 'Cồn 90 độ Y Tế (Chai 500ml)', 'Chai', 100, 35000, 'LOT-2026-02', '2029-06-30', 'Hóa chất sát khuẩn'],
-        ['ADN-KIT01', 'Bộ kit định danh ADN Pháp Y', 'Bộ', 10, 12500000, 'LOT-ADN-99', '2027-10-15', 'Phục vụ án hình sự']
+        ['ACCO-SDI', 'Acco sắt SDI', 'Hộp', 5, 25000, 'LÔ-VPP', '', '', 'Bút, dấu & Dụng cụ văn phòng'],
+        ['B-KIM-10', 'Bấm kim số 10', 'Cái', 13, 18000, 'LÔ-VPP', '', '', 'Bút, dấu & Dụng cụ văn phòng'],
+        ['BC-QUET-SAN', 'Bàn chải quét sàn', 'Cây', 3, 45000, 'LÔ-VT', '', 'Vật dụng vệ sinh', 'Vật phẩm phục vụ phòng ban'],
+        ['GT-NIT', 'Găng tay y tế Nitrile không bột', 'Hộp', 50, 85000, 'LOT-2026-01', '2028-12-31', '', 'Vật tư tiêu hao xét nghiệm & BHLĐ'],
+        ['CON-90', 'Cồn 90 độ Y Tế (Chai 500ml)', 'Chai', 100, 35000, 'LOT-2026-02', '2029-06-30', 'Sát khuẩn', ''],
+        ['ADN-KIT01', 'Bộ kit định danh ADN Pháp Y', 'Bộ', 10, 12500000, 'LOT-ADN-99', '2027-10-15', '', 'Sinh phẩm & Kit ADN']
       ];
 
       if (typeof XLSX !== 'undefined') {
@@ -5294,7 +5628,8 @@ if (typeof module !== "undefined" && module.exports) {
           { wch: 20 }, // Đơn Giá
           { wch: 16 }, // Số Lô
           { wch: 26 }, // Hạn Dùng
-          { wch: 25 }  // Ghi Chú
+          { wch: 25 }, // Ghi Chú
+          { wch: 34 }  // Nhóm hàng
         ];
 
         const wb = XLSX.utils.book_new();
@@ -5309,6 +5644,24 @@ if (typeof module !== "undefined" && module.exports) {
       console.error('Lỗi tạo file mẫu Excel:', err);
       showToast('Lỗi khi tải file mẫu: ' + err.message, 'danger');
     }
+  }
+
+  // Đọc số kiểu Việt Nam lẫn kiểu Anh: 12 | 2,5 | 2.5 | 1.234,5 | 1,234.5 | 50.000 (giá)
+  function parseFlexibleNumber(raw, isPrice = false) {
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+    let t = String(raw == null ? '' : raw).trim().replace(/\s|đ|vnđ|vnd/gi, '');
+    if (!t) return null;
+    const hasDot = t.includes('.'), hasComma = t.includes(',');
+    if (hasDot && hasComma) {
+      if (t.lastIndexOf(',') > t.lastIndexOf('.')) t = t.replace(/\./g, '').replace(',', '.');
+      else t = t.replace(/,/g, '');
+    } else if (hasComma) {
+      t = /^\d{1,3}(,\d{3})+$/.test(t) && isPrice ? t.replace(/,/g, '') : t.replace(',', '.');
+    } else if (hasDot) {
+      if (/^\d{1,3}(\.\d{3})+$/.test(t) && (isPrice || (t.match(/\./g) || []).length > 1)) t = t.replace(/\./g, '');
+    }
+    if (!/^-?\d+(\.\d+)?$/.test(t)) return null;
+    return Number(t);
   }
 
   function parseStockInExcelFile(file, callback) {
@@ -5353,13 +5706,16 @@ if (typeof module !== "undefined" && module.exports) {
           price: -1,
           lot: -1,
           exp: -1,
-          notes: -1
+          notes: -1,
+          category: -1
         };
 
         headers.forEach((h, idx) => {
           // Chuyển "đ" -> "d" TRƯỚC khi bỏ dấu (NFD không tách được chữ đ), nếu không cột "ĐVT" / "Đơn vị tính" sẽ không được nhận ra
           const clean = h.replace(/đ/g, 'd').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-          if (clean.includes('ten') || clean.includes('name') || clean.includes('mathang') || clean.includes('vattu') || clean.includes('sanpham')) {
+          if (clean.includes('nhomhang') || clean.includes('nhom') || clean.includes('category') || clean.includes('phanloai')) {
+            if (colMap.category === -1) colMap.category = idx;
+          } else if (clean.includes('ten') || clean.includes('name') || clean.includes('mathang') || clean.includes('vattu') || clean.includes('sanpham')) {
             if (colMap.name === -1) colMap.name = idx;
           } else if (clean.includes('dvt') || clean.includes('donvi') || clean.includes('unit')) {
             if (colMap.unit === -1) colMap.unit = idx;
@@ -5394,22 +5750,27 @@ if (typeof module !== "undefined" && module.exports) {
           if (!name || name.toLowerCase().includes('tên mặt hàng') || name.toLowerCase().includes('tổng cộng')) continue;
 
           const rawUnit = colMap.unit !== -1 ? row[colMap.unit] : '';
-          const unit = rawUnit ? String(rawUnit).trim() : 'Cái';
+          const unit = rawUnit ? String(rawUnit).trim() : '';
 
-          const rawQty = colMap.qty !== -1 ? row[colMap.qty] : 1;
-          const quantity = Math.max(1, parseFloat(String(rawQty).replace(/,/g, '')) || 1);
+          const rawQty = colMap.qty !== -1 ? row[colMap.qty] : '';
+          const quantity = parseFlexibleNumber(rawQty);
 
           const rawCode = colMap.code !== -1 ? row[colMap.code] : '';
-          let code = rawCode ? String(rawCode).trim().toUpperCase() : '';
+          let code = rawCode ? String(rawCode).trim().toUpperCase().replace(/\s+/g, '') : '';
+          const codeGiven = !!code;
           if (!code && name) {
             code = generateItemCodeFromName(name, 'CHEMICAL');
           }
 
-          const rawPrice = colMap.price !== -1 ? row[colMap.price] : 0;
-          const unitPrice = Math.max(0, parseFloat(String(rawPrice).replace(/[^0-9.]/g, '')) || 0);
+          const rawPrice = colMap.price !== -1 ? row[colMap.price] : '';
+          const priceParsed = String(rawPrice).trim() === '' ? 0 : parseFlexibleNumber(rawPrice, true);
+          const unitPrice = priceParsed === null ? 0 : priceParsed;
+          const priceError = priceParsed === null || priceParsed < 0;
+
+          const category = colMap.category !== -1 ? String(row[colMap.category] || '').trim() : '';
 
           const rawLot = colMap.lot !== -1 ? row[colMap.lot] : '';
-          const lotNumber = rawLot ? String(rawLot).trim() : 'LÔ-MỚI';
+          const lotNumber = rawLot ? String(rawLot).trim() : 'LÔ-EXCEL';
 
           let expiryDate = '';
           if (colMap.exp !== -1 && row[colMap.exp]) {
@@ -5432,15 +5793,21 @@ if (typeof module !== "undefined" && module.exports) {
           const notes = rawNotes ? String(rawNotes).trim() : '';
 
           parsedItems.push({
+            rowNo: r + 1,
             name,
             unit,
-            quantity,
+            quantity: quantity === null ? 0 : quantity,
+            rawQty: String(rawQty),
             code,
+            codeGiven,
+            category,
             unitPrice,
+            rawPrice: String(rawPrice),
+            priceError,
             lotNumber,
             expiryDate,
             notes,
-            amount: quantity * unitPrice
+            amount: (quantity || 0) * unitPrice
           });
         }
 
@@ -6071,7 +6438,7 @@ if (typeof module !== "undefined" && module.exports) {
               <button type="button" class="btn btn-outline btn-sm btn-view-req" onclick="openDetailRequisitionModal('${req.id}')" data-id="${req.id}" title="Xem Chi Tiết & Phê Duyệt" style="font-weight: 600;">
                 ${req.status === 'PENDING' ? '⚡ Duyệt' : '👁️ Xem'}
               </button>
-              <button type="button" class="btn btn-outline btn-sm btn-print-req" onclick="printRequisitionById('${req.id}')" data-id="${req.id}" title="In Phiếu Đề Xuất A4">
+              <button type="button" class="btn btn-outline btn-sm btn-print-req" onclick="printRequisitionById('${req.id}')" data-id="${req.id}" title="In Phiếu Lãnh Vật Tư">
                 🖨️ In
               </button>
               <button type="button" class="btn btn-outline btn-sm btn-del-req" onclick="deleteRequisitionById('${req.id}')" data-id="${req.id}" title="Xóa Phiếu Đề Xuất" style="color: var(--danger);">
@@ -6478,125 +6845,92 @@ if (typeof module !== "undefined" && module.exports) {
   function printRequisitionReceipt(req, settings) {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      showToast('Vui lòng cho phép popup để in phiếu đề xuất!', 'warning');
+      showToast('Vui lòng cho phép popup để in phiếu lãnh vật tư!', 'warning');
       return;
     }
-
-    const parentOrg = settings?.parentOrg || 'SỞ Y TẾ THÀNH PHỐ HỒ CHÍ MINH';
-    const orgName = settings?.orgName || 'TRUNG TÂM PHÁP Y THÀNH PHỐ';
-    const isChem = req.warehouseId === 'CHEMICAL';
-
-    let rowsHtml = '';
-    req.items.forEach((item, index) => {
-      rowsHtml += `
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const m = String(req.date || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const dateLine = m ? `Ngày ${m[3]} tháng ${m[2]} năm ${m[1]}` : 'Ngày ..... tháng ..... năm 20...';
+    const items = req.items || [];
+    const MIN_ROWS = 10;
+    let rowsHtml = items.map((it, idx) => `
         <tr>
-          <td style="text-align: center;">${index + 1}</td>
-          <td><strong>${item.itemName}</strong><br><small style="color: #64748b;">Mã: ${item.itemCode || '---'}</small></td>
-          <td style="text-align: center;">${item.unit}</td>
-          <td style="text-align: center; font-weight: bold; font-size: 13.5px;">${formatNumber(item.quantity)}</td>
-          <td>${item.notes || '---'}</td>
-        </tr>
-      `;
-    });
+          <td class="c">${idx + 1}</td>
+          <td class="c">${esc(it.itemCode)}</td>
+          <td>${esc(it.itemName)}</td>
+          <td class="c">${esc(it.unit)}</td>
+          <td class="c">${formatNumber(it.quantity)}</td>
+          <td>${esc(it.notes && it.notes !== '---' ? it.notes : '')}</td>
+        </tr>`).join('');
+    for (let k = items.length; k < MIN_ROWS; k++) {
+      rowsHtml += '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>';
+    }
 
-    const printHtml = `
-      <!DOCTYPE html>
-      <html>
+    const printHtml = `<!DOCTYPE html>
+      <html lang="vi">
       <head>
         <meta charset="utf-8">
-        <title>PHIẾU ĐỀ XUẤT LÃNH VẬT TƯ & HÀNG HÓA - ${req.code}</title>
+        <title>Phiếu lãnh vật tư - ${esc(req.code)}</title>
         <style>
-          @page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }
-          body { font-family: "Times New Roman", Times, serif; font-size: 13pt; line-height: 1.35; color: #000; margin: 0; padding: 0; }
-          .header-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-          .header-table td { vertical-align: top; }
-          .doc-title { text-align: center; font-size: 16pt; font-weight: bold; margin: 12px 0 4px 0; text-transform: uppercase; }
-          .doc-code { text-align: center; font-size: 11pt; font-style: italic; margin-bottom: 14px; }
-          .info-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 12.5pt; }
-          .info-table td { padding: 3px 0; }
-          .items-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-          .items-table th, .items-table td { border: 1px solid #000; padding: 7px 6px; font-size: 12pt; }
-          .items-table th { background: #f1f5f9; text-align: center; font-weight: bold; }
-          .sign-table { width: 100%; border-collapse: collapse; margin-top: 20px; page-break-inside: avoid; }
-          .sign-table td { text-align: center; vertical-align: top; width: 33.33%; font-size: 12pt; }
-          .sign-role { font-weight: bold; text-transform: uppercase; margin-bottom: 4px; }
-          .sign-note { font-style: italic; font-size: 10.5pt; }
-          .sign-space { height: 75px; }
-          .sign-name { font-weight: bold; font-size: 12.5pt; }
+          @page { size: A4 portrait; margin: 15mm 15mm 15mm 20mm; }
+          body { font-family: "Times New Roman", Times, serif; font-size: 13pt; color: #000; margin: 0; }
+          .hdr { width: 100%; border-collapse: collapse; }
+          .hdr td { text-align: center; vertical-align: top; font-weight: bold; font-size: 13pt; line-height: 1.3; padding: 0; }
+          .ul { display: inline-block; border-bottom: 1px solid #000; padding-bottom: 1px; }
+          .khoa { margin: 10px 0 0 6mm; font-size: 13pt; }
+          .title { text-align: center; font-weight: bold; font-size: 15pt; margin: 22px 0 4px; }
+          .date { text-align: center; font-style: italic; font-size: 13pt; margin-bottom: 18px; }
+          table.items { width: calc(100% - 2px); border-collapse: collapse; table-layout: fixed; }
+          html, body { width: auto; }
+          * { box-sizing: border-box; }
+          table.items th, table.items td { border: 1px solid #000; padding: 4px 6px; font-size: 12pt; height: 22px; }
+          table.items th { font-weight: bold; text-align: center; }
+          td.c { text-align: center; }
+          .sign { width: 100%; border-collapse: collapse; margin-top: 26px; page-break-inside: avoid; }
+          .sign td { width: 25%; text-align: center; vertical-align: top; }
+          .role { font-weight: bold; font-size: 13pt; }
+          .note { font-style: italic; font-size: 11pt; }
+          .space { height: 90px; }
+          .ref { margin-top: 18px; font-size: 9pt; color: #555; text-align: right; }
         </style>
       </head>
       <body>
-        <table class="header-table">
+        <table class="hdr">
           <tr>
-            <td style="width: 50%; text-align: center;">
-              <span style="font-size: 11pt; text-transform: uppercase;">${parentOrg}</span><br>
-              <strong style="font-size: 11.5pt; text-transform: uppercase;">${orgName}</strong><br>
-              <span style="font-size: 11pt;">Kho: ${req.warehouseId === 'ALL' ? 'Vật Tư & Văn Phòng Phẩm' : (isChem ? 'Vật Tư & Hóa Chất' : 'Văn Phòng Phẩm')}</span>
-            </td>
-            <td style="width: 50%; text-align: center;">
-              <strong style="font-size: 11.5pt;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br>
-              <span style="font-size: 11.5pt; font-weight: bold; text-decoration: underline;">Độc lập - Tự do - Hạnh phúc</span><br>
-              <span style="font-size: 11pt; font-style: italic;">TP. Hồ Chí Minh, ${formatDate(req.date)}</span>
-            </td>
+            <td style="width: 40%;">SỞ Y TẾ TP. HCM<br><span class="ul">TRUNG TÂM PHÁP Y</span></td>
+            <td style="width: 60%;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM<br><span class="ul">Độc lập - Tự do - Hạnh phúc</span></td>
           </tr>
         </table>
+        <div class="khoa">Khoa: ${req.departmentName ? esc(req.departmentName) : '…………………………………'}</div>
 
-        <div class="doc-title">PHIẾU ĐỀ XUẤT LÃNH VẬT TƯ & VĂN PHÒNG PHẨM</div>
-        <div class="doc-code">Mã số đề xuất: <strong>${req.code}</strong></div>
+        <div class="title">PHIẾU LÃNH VẬT TƯ</div>
+        <div class="date">${dateLine}</div>
 
-        <table class="info-table">
-          <tr>
-            <td style="width: 60%;">Khoa / Phòng đề xuất: <strong>${req.departmentName}</strong></td>
-            <td style="width: 40%;">Người đề xuất: <strong>${req.requester}</strong></td>
-          </tr>
-          <tr>
-            <td colspan="2">Lý do / Mục đích xin cấp phát: <em>${req.reason || 'Phục vụ công tác chuyên môn'}</em></td>
-          </tr>
-          <tr>
-            <td colspan="2">Trạng thái phiếu: <strong>${req.status === 'APPROVED' ? 'ĐÃ PHÊ DUYỆT & XUẤT KHO' : (req.status === 'PENDING' ? 'CHỜ PHÊ DUYỆT' : 'TỪ CHỐI')}</strong></td>
-          </tr>
-        </table>
-
-        <table class="items-table">
+        <table class="items">
           <thead>
             <tr>
-              <th style="width: 7%;">STT</th>
-              <th style="width: 45%;">Tên Vật Tư / Hàng Hóa Yêu Cầu</th>
-              <th style="width: 12%;">ĐVT</th>
-              <th style="width: 16%;">Số Lượng Xin</th>
-              <th style="width: 20%;">Ghi Chú</th>
+              <th style="width: 7%;">Stt</th>
+              <th style="width: 15%;">Mã vật tư</th>
+              <th style="width: 33%;">Tên vật tư</th>
+              <th style="width: 11%;">Đvt</th>
+              <th style="width: 14%;">Số lượng</th>
+              <th style="width: 20%;">Ghi chú</th>
             </tr>
           </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
+          <tbody>${rowsHtml}</tbody>
         </table>
 
-        <table class="sign-table">
+        <table class="sign">
           <tr>
-            <td>
-              <div class="sign-role">NGƯỜI ĐỀ XUẤT</div>
-              <div class="sign-note">(Ký và ghi rõ họ tên)</div>
-              <div class="sign-space"></div>
-              <div class="sign-name">${req.requester}</div>
-            </td>
-            <td>
-              <div class="sign-role">TRƯỞNG KHOA / PHÒNG</div>
-              <div class="sign-note">(Ký và ghi rõ họ tên)</div>
-              <div class="sign-space"></div>
-              <div class="sign-name"></div>
-            </td>
-            <td>
-              <div class="sign-role">THỦ KHO XÁC NHẬN</div>
-              <div class="sign-note">(Ký và ghi rõ họ tên)</div>
-              <div class="sign-space"></div>
-              <div class="sign-name">${settings?.storekeeper || 'Cử nhân Lê Văn Quý'}</div>
-            </td>
+            <td><div class="role">GIÁM ĐỐC</div><div class="note">(Ký, ghi rõ họ tên)</div><div class="space"></div></td>
+            <td><div class="role">NGƯỜI PHÁT</div><div class="note">(Ký, ghi rõ họ tên)</div><div class="space"></div></td>
+            <td><div class="role">NGƯỜI LÃNH</div><div class="note">(Ký, ghi rõ họ tên)</div><div class="space"></div></td>
+            <td><div class="role">TRƯỞNG KHOA</div><div class="note">(Ký, ghi rõ họ tên)</div><div class="space"></div></td>
           </tr>
         </table>
+        <div class="ref">Mã phiếu đề xuất: ${esc(req.code)}</div>
       </body>
-      </html>
-    `;
+      </html>`;
 
     printWindow.document.write(printHtml);
     printWindow.document.close();
@@ -6605,7 +6939,7 @@ if (typeof module !== "undefined" && module.exports) {
       printWindow.print();
     }, 400);
   }
-  
+
   function setupEventListeners() {
     // Setup Smart Autocomplete
     setupItemAutocomplete();
@@ -6860,7 +7194,7 @@ if (typeof module !== "undefined" && module.exports) {
           };
           closeCreateRequisitionModal();
           showToast(`🎉 Đã gửi Phiếu Đề Xuất (${code}) tới Thủ kho thành công!`, 'success');
-          if (confirm(`Phiếu đề xuất ${code} đã gửi. Bạn có muốn in Phiếu Đề Xuất A4 ngay bây giờ?`)) {
+          if (confirm(`Phiếu đề xuất ${code} đã gửi. Bạn có muốn in Phiếu lãnh vật tư ngay bây giờ?`)) {
             printRequisitionReceipt(sentReq, db.getData().settings);
           }
           return;
@@ -6884,7 +7218,7 @@ if (typeof module !== "undefined" && module.exports) {
           renderRequisitionsView();
         }
 
-        if (confirm(`Phiếu đề xuất ${newReq.code} đã gửi. Bạn có muốn in Phiếu Đề Xuất A4 ngay bây giờ?`)) {
+        if (confirm(`Phiếu đề xuất ${newReq.code} đã gửi. Bạn có muốn in Phiếu lãnh vật tư ngay bây giờ?`)) {
           printRequisitionReceipt(newReq, db.getData().settings);
         }
       };
@@ -7066,98 +7400,71 @@ if (typeof module !== "undefined" && module.exports) {
     }
 
     // Submit Batch Import
+    if ($('#batch-date')) $('#batch-date').onchange = () => { if ($('#batch-date-text')) $('#batch-date-text').textContent = formatViDate($('#batch-date').value); };
+    if ($('#batch-warehouse')) $('#batch-warehouse').onchange = () => { if (batchImportParsedItems.length) renderBatchImportPreview(batchImportParsedItems); };
+
     if ($('#form-batch-import')) {
-      $('#form-batch-import').onsubmit = (e) => {
+      $('#form-batch-import').onsubmit = async (e) => {
         e.preventDefault();
         if (!batchImportParsedItems || batchImportParsedItems.length === 0) {
           showToast('Vui lòng chọn file Excel có dữ liệu hàng nhập trước!', 'warning');
           return;
         }
-
         const wh = $('#batch-warehouse').value;
-        const enteredCode = $('#batch-code') ? $('#batch-code').value.trim() : '';
-        const supplier = ($('#batch-supplier') ? $('#batch-supplier').value.trim() : '') || 'Nhập theo lô Excel';
-        const invoiceNumber = ($('#batch-invoice') ? $('#batch-invoice').value.trim() : '') || '---';
-        const receiver = ($('#batch-receiver') ? $('#batch-receiver').value.trim() : '') || ($('#sidebar-user-name')?.textContent || 'Lê Văn Quý');
         const date = $('#batch-date').value;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { showToast('Ngày nhập kho không hợp lệ!', 'warning'); return; }
+        const plan = db.planStockInBatch(wh, batchImportParsedItems);
+        if (plan.errors.length) { showToast('File còn dòng lỗi, vui lòng sửa file rồi chọn lại.', 'danger'); return; }
+        const distinct = new Set(plan.rows.map(r => r.key)).size;
+        const totalQty = Math.round(plan.rows.reduce((sum, r) => sum + r.quantity, 0) * 1000) / 1000;
+        if (!confirm(`XÁC NHẬN NHẬP KHO HÀNG LOẠT\n\nKho: ${wh === 'CHEMICAL' ? 'Kho Vật tư' : 'Kho Văn phòng phẩm'}\nNgày nhập: ${formatViDate(date)}\nSố dòng: ${batchImportParsedItems.length} · Mã hàng: ${distinct} (${plan.newCodes.size} tạo mới, ${plan.existingCodes.size} đã có)\nTổng số lượng: ${formatNumber(totalQty)}\n\nBấm OK để ghi dữ liệu.`)) return;
 
-        const items = [];
-        let totalAmount = 0;
-
-        batchImportParsedItems.forEach(pi => {
-          let itemId = '';
-          let itemCode = pi.code;
-          let itemName = pi.name;
-          let unit = pi.unit || 'Cái';
-
-          // Check if item exists in warehouse
-          const existingItem = db.getItems(wh).find(i => 
-            (itemCode && i.code && i.code.toLowerCase() === itemCode.toLowerCase()) ||
-            (i.name && i.name.toLowerCase().trim() === itemName.toLowerCase().trim())
-          );
-
-          if (existingItem) {
-            itemId = existingItem.id;
-            itemCode = existingItem.code;
-            itemName = existingItem.name;
-            unit = existingItem.unit || unit;
-          } else {
-            // Auto create new item in database
-            const createdItem = db.saveItem({
-              warehouseId: wh,
-              code: itemCode,
-              name: itemName,
-              category: wh === 'CHEMICAL' ? 'Hóa chất phân tích độc chất & Sắc ký' : 'Vật phẩm phục vụ phòng ban',
-              unit: unit,
-              minStock: 0,
-              minStockSet: false,
-              hazardLevel: 'Thường',
-              storageCondition: 'Nhiệt độ phòng'
-            });
-            itemId = createdItem.id;
-            itemCode = createdItem.code;
-            itemName = createdItem.name;
-          }
-
-          const quantity = pi.quantity || 1;
-          const unitPrice = pi.unitPrice || 0;
-          const amount = quantity * unitPrice;
-          totalAmount += amount;
-
-          items.push({
-            itemId,
-            itemCode,
-            itemName,
-            unit,
-            lotNumber: pi.lotNumber || 'LÔ-EXCEL',
-            expiryDate: pi.expiryDate || '---',
-            quantity,
-            unitPrice,
-            amount,
-            notes: pi.notes || ''
+        const btn = $('#btn-submit-batch-import');
+        if (btn) btn.disabled = true;
+        db.beginBulk();
+        let res;
+        try {
+          res = db.importStockInBatch({
+            wh, date,
+            code: $('#batch-code') ? $('#batch-code').value.trim() : '',
+            supplier: ($('#batch-supplier') ? $('#batch-supplier').value.trim() : '') || 'Nhập theo lô Excel',
+            invoiceNumber: ($('#batch-invoice') ? $('#batch-invoice').value.trim() : '') || '---',
+            receiver: ($('#batch-receiver') ? $('#batch-receiver').value.trim() : '') || (authState.email || 'Thủ kho'),
+            rows: batchImportParsedItems,
+            updateUnits: $('#batch-update-units') ? $('#batch-update-units').checked : true
           });
-        });
+        } catch (err) {
+          res = { ok: false, errors: ['Lỗi không mong muốn: ' + (err && err.message ? err.message : err)] };
+        } finally {
+          db.endBulk();
+          if (btn) btn.disabled = false;
+        }
+        if (!res.ok) {
+          alert('KHÔNG NHẬP ĐƯỢC - chưa có dữ liệu nào được ghi:\n\n' + res.errors.slice(0, 20).join('\n'));
+          return;
+        }
 
-        const tr = {
-          code: enteredCode,
-          warehouseId: wh,
-          date,
-          supplier,
-          invoiceNumber,
-          deliverer: 'Nhập từ file Excel',
-          receiver,
-          reason: 'Nhập kho hàng loạt từ file Excel',
-          totalAmount,
-          items
-        };
-
-        db.createStockInTransaction(tr);
         $('#modal-batch-import').classList.remove('open');
-        showToast(`🎉 Đã nhập kho thành công ${items.length} mặt hàng từ file Excel!`, 'success');
         renderCurrentView();
+        updateGlobalAlertBadge();
 
-        if (confirm(`Đã lưu thành công phiếu nhập ${items.length} mặt hàng. Bạn có muốn in Phiếu Nhập Kho A4 ngay bây giờ?`)) {
-          printStockInReceipt(tr, db.getData().settings);
+        let syncMsg = 'Chế độ cục bộ (không dùng Đám Mây).';
+        if (db.isCloudActive()) {
+          showToast('Đang đồng bộ lên Đám Mây...', 'info');
+          const ok = await db.pushToCloud();
+          syncMsg = ok ? 'Đã đồng bộ lên Đám Mây thành công.'
+            : 'CHƯA đồng bộ được lên Đám Mây (lỗi mạng?). Dữ liệu đang lưu trên máy này - KHÔNG đăng xuất, kiểm tra Internet rồi bấm nút đồng bộ 🔄.';
+          updateCloudStatusUI(ok ? 'online' : 'error', ok ? null : 'Chưa đồng bộ');
+        }
+        const r = res.report;
+        alert(`NHẬP KHO THÀNH CÔNG - Phiếu ${res.transaction.code}\n\n` +
+          `- Số dòng đọc được: ${r.rowsRead}\n- Mã hàng khác nhau: ${r.distinctCodes}\n- Mặt hàng tạo mới: ${r.created}\n- Mặt hàng đã có (cộng tồn): ${r.existing}\n- Tổng số lượng nhập: ${formatNumber(r.totalQty)}\n` +
+          (r.unitChanges.length ? `- Đã cập nhật ĐVT theo file: ${r.unitChanges.length} mặt hàng\n` : '') +
+          (r.preexistingDupCodes.length || r.preexistingDupIds.length ? `\nCẢNH BÁO: dữ liệu kho cũ đang có ${r.preexistingDupIds.length} ID trùng và ${r.preexistingDupCodes.length} mã trùng (từ trước). Nên dùng chức năng "Xóa dữ liệu theo kho" rồi nhập lại.\n` : '') +
+          `\n${syncMsg}`);
+
+        if (confirm(`Bạn có muốn in Phiếu Nhập Kho A4 (${res.transaction.code}) ngay bây giờ?`)) {
+          printStockInReceipt(res.transaction, db.getData().settings);
         }
       };
     }
@@ -7213,6 +7520,14 @@ if (typeof module !== "undefined" && module.exports) {
         minStockSet: Number($('#item-min-stock').value) > 0,
         notes: $('#item-notes').value.trim()
       };
+
+      const dupCode = db.findItemByCode(newItem.warehouseId, newItem.code, itemId || null);
+      if (newItem.code && dupCode) {
+        showToast(`Mã hàng "${newItem.code}" đã có trong kho này (${dupCode.name}). Mỗi mã chỉ dùng cho một mặt hàng.`, 'danger');
+        $('#item-code').focus();
+        return;
+      }
+      if (newItem.code) newItem.code = newItem.code.toUpperCase().replace(/\s+/g, '');
 
       if (itemId) {
         const existing = db.getItemById(itemId);
@@ -7286,12 +7601,14 @@ if (typeof module !== "undefined" && module.exports) {
             itemCode = generateItemCodeFromName(customName, wh);
           }
 
+          // Mã đã có trong kho -> dùng mặt hàng có sẵn, không tạo trùng
+          const sameCode = db.findItemByCode(wh, itemCode);
           // Tự động tạo và lưu mặt hàng mới vào danh mục
-          const createdItem = db.saveItem({
+          const createdItem = sameCode || db.saveItem({
             warehouseId: wh,
-            code: itemCode,
+            code: itemCode.toUpperCase().replace(/\s+/g, ''),
             name: customName,
-            category: wh === 'CHEMICAL' ? 'Hóa chất phân tích độc chất & Sắc ký' : 'Vật phẩm phục vụ phòng ban',
+            category: wh === 'CHEMICAL' ? 'Vật tư tiêu hao xét nghiệm & BHLĐ' : 'Vật phẩm phục vụ phòng ban',
             unit: unit,
             minStock: 0,
             minStockSet: false,
@@ -7692,6 +8009,30 @@ if (typeof module !== "undefined" && module.exports) {
       showToast('Đã tải về file sao lưu cơ sở dữ liệu (.json)!');
     };
 
+    if ($('#btn-wipe-warehouse')) {
+      $('#btn-wipe-warehouse').onclick = async () => {
+        const wh = $('#wipe-warehouse-select').value;
+        const name = wh === 'CHEMICAL' ? 'KHO VẬT TƯ' : 'KHO VĂN PHÒNG PHẨM';
+        const data = db.getData();
+        const nItems = data.items.filter(i => i.warehouseId === wh).length;
+        const nTx = (data.transactions || []).filter(t => t.warehouseId === wh).length;
+        const typed = prompt(`Sẽ XÓA ${nItems} mặt hàng và ${nTx} phiếu nhập/xuất của ${name}.\n(Phiếu đề xuất của các Khoa không bị xóa.)\n\nGõ chữ XOA để xác nhận:`);
+        if (typed === null) return;
+        if (typed.trim().toUpperCase() !== 'XOA') { showToast('Chưa xác nhận đúng, không xóa gì.', 'info'); return; }
+        // Tự tải file sao lưu trước khi xóa
+        $('#btn-export-backup-json').click();
+        const res = db.wipeWarehouse(wh);
+        renderCurrentView();
+        updateGlobalAlertBadge();
+        let msg = `Đã xóa ${res.items} mặt hàng và ${res.transactions} phiếu của ${name}.`;
+        if (db.isCloudActive()) {
+          const ok = await db.pushToCloud();
+          msg += ok ? ' Đã đồng bộ lên Đám Mây.' : ' CHƯA đồng bộ được lên Đám Mây, vui lòng bấm nút đồng bộ.';
+        }
+        showToast(msg, 'success');
+      };
+    }
+
     $('#btn-trigger-restore').onclick = () => {
       $('#file-restore-db').click();
     };
@@ -7938,6 +8279,11 @@ if (typeof module !== "undefined" && module.exports) {
     };
   })();
 
+  db.onSyncError = () => {
+    updateCloudStatusUI('error', 'Chưa đồng bộ');
+    showToast('Đồng bộ Đám Mây thất bại. Dữ liệu vẫn lưu trên máy này; kiểm tra Internet rồi bấm nút đồng bộ 🔄. Không đăng xuất lúc này.', 'danger');
+  };
+
   function hasUnsyncedChanges() {
     try { return localStorage.getItem(UNSYNCED_FLAG) === '1'; } catch (e) { return false; }
   }
@@ -8147,7 +8493,7 @@ if (typeof module !== "undefined" && module.exports) {
     } else {
       updateCloudStatusUI('error', 'Lỗi kết nối đám mây');
     }
-    const unitFix = db.repairUnitsEqualToName();
+    const unitFix = { fixed: 0, guessed: [] }; // Đã tắt: không tự đoán ĐVT nữa (lỗi gốc ở phần đọc Excel đã được sửa)
     if (unitFix.fixed > 0) {
       await db.pushToCloud();
       showToast(`Đã tự sửa đơn vị tính bị ghi nhầm thành tên hàng (${unitFix.fixed} dòng).` +
@@ -8382,7 +8728,6 @@ if (typeof module !== "undefined" && module.exports) {
           unlockAppScreen();
           $('#lock-error-msg') && ($('#lock-error-msg').style.display = 'none');
           showToast('🔓 Xác thực thành công!', 'success');
-          if (db.repairUnitsEqualToName().fixed > 0) showToast('Đã tự sửa đơn vị tính bị ghi nhầm thành tên hàng.', 'info');
           renderCurrentView();
         } else {
           registerFailedAttempt('⚠️ Mật khẩu không chính xác.');

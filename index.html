@@ -1240,6 +1240,20 @@
                 </div>
 
                 <div style="border-top: 1px dashed var(--border); padding-top: 16px;">
+                  <h4 style="font-size: 14px; font-weight: 700; color: var(--danger); margin-bottom: 6px;">Xóa dữ liệu theo kho (để nhập lại từ đầu)</h4>
+                  <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+                    Xóa toàn bộ mặt hàng và phiếu nhập/xuất của kho được chọn. Hệ thống tự tải file sao lưu trước khi xóa; trên Đám Mây vẫn giữ bản cũ trong nhật ký phiên bản.
+                  </p>
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <select class="form-control" id="wipe-warehouse-select" style="max-width: 240px;">
+                      <option value="OFFICE">Kho Văn phòng phẩm</option>
+                      <option value="CHEMICAL">Kho Vật tư</option>
+                    </select>
+                    <button class="btn btn-danger btn-sm" id="btn-wipe-warehouse">Xóa toàn bộ dữ liệu kho này</button>
+                  </div>
+                </div>
+
+                <div style="border-top: 1px dashed var(--border); padding-top: 16px;">
                   <h4 style="font-size: 14px; font-weight: 700; color: var(--danger); margin-bottom: 6px;">⚠️ Khôi Phục Dữ Liệu Mẫu Pháp Y Gốc</h4>
                   <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
                     Nạp lại bộ dữ liệu mẫu chuẩn ngành Pháp y (Kit ADN, que test ma túy, Formalin, VPP...).
@@ -1587,6 +1601,7 @@
             <div class="form-group">
               <label class="form-label">Ngày Nhập Kho <span class="required">*</span></label>
               <input type="date" class="form-control" id="batch-date" required>
+              <small id="batch-date-text" style="font-size: 12px; color: var(--text-muted);"></small>
             </div>
             <div class="form-group">
               <label class="form-label">Nhà Cung Cấp / Nguồn Nhập:</label>
@@ -1625,6 +1640,10 @@
             <span style="font-size: 12.5px; color: var(--text-muted);">Hệ thống tự động tra cứu mã chuẩn và tạo mới mặt hàng nếu chưa có</span>
           </div>
 
+          <div id="batch-plan-summary" style="display: none; margin-bottom: 10px; font-size: 13px; line-height: 1.55;"></div>
+          <label id="batch-update-units-wrap" style="display: none; font-size: 13px; margin-bottom: 8px; gap: 6px; align-items: center;">
+            <input type="checkbox" id="batch-update-units" checked> Cập nhật ĐVT của mặt hàng có sẵn theo file
+          </label>
           <div class="table-responsive" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
             <table class="table" id="table-batch-preview">
               <thead>
@@ -2011,7 +2030,7 @@
       <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div>
           <button type="button" class="btn btn-outline" id="btn-print-requisition-a4" style="color: #0369a1; border-color: #7dd3fc; font-weight: 600;">
-            🖨️ In Phiếu Đề Xuất A4
+            🖨️ In Phiếu Lãnh Vật Tư
           </button>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="req-detail-action-buttons">
