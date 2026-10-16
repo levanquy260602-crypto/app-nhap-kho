@@ -7,6 +7,13 @@
 (function () {
   'use strict';
 
+  // Chống chạy 2 lần (2 bản chạy song song sẽ giữ 2 bản dữ liệu và ghi đè lẫn nhau)
+  if (window.__FORENSIC_APP_STARTED__) {
+    console.warn('ForensicStore Pro đã chạy, bỏ qua lần nạp thứ hai.');
+    return;
+  }
+  window.__FORENSIC_APP_STARTED__ = true;
+
   // ==========================================
   // 1. DATA & STORAGE MODULE
   // ==========================================
@@ -4558,7 +4565,7 @@ if (typeof module !== "undefined" && module.exports) {
           <td>
             <strong>${item.name}</strong><br>
             <small class="text-muted">
-              Quy cách: ${item.packingSpec || '---'} | Hãng: ${item.manufacturer || '---'} (${item.origin || ''})
+              Quy cách: ${item.packingSpec || '---'} | Hãng: ${item.manufacturer || '---'}${item.origin ? ` (${item.origin})` : ''}
             </small>
             ${item.chemicalFormula && item.chemicalFormula !== 'N/A' ? `<br><small class="font-mono">CT: <strong>${item.chemicalFormula}</strong> | CAS: ${item.casNumber || 'N/A'}</small>` : ''}
           </td>
@@ -5470,7 +5477,9 @@ if (typeof module !== "undefined" && module.exports) {
       $('#item-storage').value = item.storageCondition || '';
       $('#item-min-stock').value = db.hasMinStockSetting(item) ? item.minStock : '';
       $('#item-notes').value = item.notes || '';
+      renderItemAdjustRows(item);
     } else {
+      if ($('#item-stock-adjust')) $('#item-stock-adjust').style.display = 'none';
       $('#modal-item-title').textContent = 'Thêm Mặt Hàng / Hóa Chất Mới';
       $('#item-min-stock').value = '';
       $('#item-id').value = '';
@@ -5478,6 +5487,75 @@ if (typeof module !== "undefined" && module.exports) {
     }
 
     modal.classList.add('open');
+  }
+
+  function renderItemAdjustRows(item) {
+    const box = $('#item-stock-adjust'), tbody = $('#item-adjust-tbody');
+    if (!box || !tbody) return;
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const batches = (item.batches || []);
+    const rows = batches.map((b, i) => `
+      <tr>
+        <td class="font-mono">${esc(b.lotNumber || '---')}</td>
+        <td>${esc(b.expiryDate || '---')}</td>
+        <td class="text-right">${formatNumber(Number(b.quantity || 0))} ${esc(item.unit)}</td>
+        <td><input type="number" step="any" min="0" class="form-control item-adjust-qty" data-idx="${i}" data-old="${Number(b.quantity || 0)}" value="${Number(b.quantity || 0)}"></td>
+      </tr>`);
+    rows.push(`
+      <tr>
+        <td><input type="text" class="form-control" id="item-adjust-newlot" placeholder="Lô mới (nếu có)"></td>
+        <td><input type="date" class="form-control" id="item-adjust-newexp"></td>
+        <td class="text-right text-muted">0</td>
+        <td><input type="number" step="any" min="0" class="form-control" id="item-adjust-newqty" placeholder="0"></td>
+      </tr>`);
+    tbody.innerHTML = rows.join('');
+    $('#item-adjust-reason').value = '';
+    box.style.display = 'block';
+  }
+
+  // Lập phiếu điều chỉnh từ các ô "Tồn thực tế"; trả về null nếu không có thay đổi, {error} nếu thiếu lý do
+  function applyItemStockAdjust(itemId) {
+    const box = $('#item-stock-adjust');
+    if (!box || box.style.display === 'none') return null;
+    const item = db.getItemById(itemId);
+    if (!item) return null;
+    const inc = [], dec = [];
+    $$('#item-adjust-tbody .item-adjust-qty').forEach(inp => {
+      const b = (item.batches || [])[Number(inp.dataset.idx)];
+      const oldQ = Number(inp.dataset.old), newQ = Number(inp.value);
+      if (!b || inp.value === '' || !Number.isFinite(newQ) || newQ < 0) return;
+      const diff = Math.round((newQ - oldQ) * 1000) / 1000;
+      const line = { itemId: item.id, itemCode: item.code, itemName: item.name, unit: item.unit, lotNumber: b.lotNumber, expiryDate: b.expiryDate || '---', unitPrice: Number(b.unitPrice || 0) };
+      if (diff > 0) inc.push({ ...line, quantity: diff, amount: diff * line.unitPrice });
+      if (diff < 0) dec.push({ ...line, quantity: -diff, amount: -diff * line.unitPrice });
+    });
+    const nq = Number($('#item-adjust-newqty')?.value || 0);
+    if (nq > 0) {
+      inc.push({ itemId: item.id, itemCode: item.code, itemName: item.name, unit: item.unit,
+        lotNumber: ($('#item-adjust-newlot').value || '').trim() || 'ĐIỀU-CHỈNH',
+        expiryDate: $('#item-adjust-newexp').value || '---', quantity: nq, unitPrice: 0, amount: 0 });
+    }
+    if (!inc.length && !dec.length) return null;
+    const reason = ($('#item-adjust-reason').value || '').trim();
+    if (!reason) return { error: 'Vui lòng nhập lý do điều chỉnh số lượng tồn.' };
+
+    const nowD = new Date();
+    const date = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+    const who = authState.email || 'Thủ kho';
+    const out = [];
+    if (inc.length) out.push(db.createStockInTransaction({
+      code: `DC-${date.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+      warehouseId: item.warehouseId, date, supplier: 'Điều chỉnh theo kiểm kê', invoiceNumber: '---',
+      deliverer: who, receiver: who, reason: `Điều chỉnh tăng theo kiểm kê: ${reason}`,
+      totalAmount: inc.reduce((sum, l) => sum + l.amount, 0), items: inc, isAdjustment: true
+    }));
+    if (dec.length) out.push(db.createStockOutTransaction({
+      code: `DC-${date.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+      warehouseId: item.warehouseId, date, departmentId: '', departmentName: 'Điều chỉnh kiểm kê',
+      receiver: who, deliverer: who, reason: `Điều chỉnh giảm theo kiểm kê: ${reason}`,
+      totalAmount: dec.reduce((sum, l) => sum + l.amount, 0), items: dec, isAdjustment: true
+    }));
+    return { transactions: out, inc: inc.length, dec: dec.length };
   }
 
   function updateItemModalFields() {
@@ -6678,9 +6756,11 @@ if (typeof module !== "undefined" && module.exports) {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td style="vertical-align: middle;">
+        <input type="search" class="form-control req-item-search" placeholder="🔍 Gõ tên hoặc mã để tìm nhanh (VD: ong ly tam)..." autocomplete="off" style="width: 100%; font-size: 13px; margin-bottom: 4px;">
         <select class="form-control req-item-select font-bold" required style="width: 100%; font-size: 13px;">
           ${optionsHtml}
         </select>
+        <small class="req-item-search-hint text-muted" style="font-size: 11.5px; display: none;"></small>
       </td>
       <td class="text-center font-bold req-item-unit" style="vertical-align: middle; color: var(--text-main); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Đơn vị tính">---</td>
       <td class="text-center font-bold req-item-stock" style="vertical-align: middle;">---</td>
@@ -6714,6 +6794,39 @@ if (typeof module !== "undefined" && module.exports) {
       $('#req-create-items-count').textContent = count;
       $('#req-create-total-qty').textContent = formatNumber(totalQty);
     };
+
+    // ---------- Tìm kiếm nhanh mặt hàng (không dấu, nhiều từ) ----------
+    const searchInput = row.querySelector('.req-item-search');
+    const hint = row.querySelector('.req-item-search-hint');
+    const normVi = (t) => String(t || '').toLowerCase().replace(/đ/g, 'd').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const allOptions = Array.from(select.options).filter(o => o.value).map(o => ({ html: o.outerHTML, value: o.value, key: normVi(o.textContent) }));
+    const applySearch = () => {
+      const words = normVi(searchInput.value).split(/\s+/).filter(Boolean);
+      const current = select.value;
+      const matches = words.length ? allOptions.filter(o => words.every(w => o.key.includes(w))) : allOptions;
+      const head = words.length
+        ? `<option value="">${matches.length ? `-- ${matches.length} mặt hàng phù hợp, bấm để chọn --` : '-- Không tìm thấy mặt hàng phù hợp --'}</option>`
+        : '<option value="">-- Chọn mặt hàng còn tồn kho --</option>';
+      select.innerHTML = head + matches.map(o => o.html).join('');
+      if (current && matches.some(o => o.value === current)) select.value = current;
+      else if (matches.length === 1) select.value = matches[0].value;
+      else select.value = '';
+      hint.style.display = words.length ? 'block' : 'none';
+      hint.textContent = words.length ? (matches.length ? `Tìm thấy ${matches.length} mặt hàng` : 'Không có mặt hàng nào khớp, thử gõ ít chữ hơn') : '';
+      if (select.value !== current) select.onchange();
+    };
+    if (allOptions.length) {
+      searchInput.oninput = applySearch;
+      searchInput.onkeydown = (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          const first = Array.from(select.options).find(o => o.value);
+          if (first) { select.value = first.value; select.onchange(); qtyInput.focus(); qtyInput.select(); }
+        }
+      };
+    } else {
+      searchInput.style.display = 'none';
+    }
 
     select.onchange = () => {
       const opt = select.selectedOptions[0];
@@ -7521,6 +7634,19 @@ if (typeof module !== "undefined" && module.exports) {
         notes: $('#item-notes').value.trim()
       };
 
+      if (itemId && $('#item-stock-adjust') && $('#item-stock-adjust').style.display !== 'none') {
+        const changed = Array.from($$('#item-adjust-tbody .item-adjust-qty')).some(inp => inp.value !== '' && Number(inp.value) !== Number(inp.dataset.old))
+          || Number($('#item-adjust-newqty')?.value || 0) > 0;
+        if (changed && !($('#item-adjust-reason').value || '').trim()) {
+          showToast('Vui lòng nhập lý do điều chỉnh số lượng tồn.', 'warning');
+          $('#item-adjust-reason').focus();
+          return;
+        }
+        if (Array.from($$('#item-adjust-tbody .item-adjust-qty')).some(inp => inp.value !== '' && Number(inp.value) < 0)) {
+          showToast('Số lượng tồn thực tế không được âm.', 'warning');
+          return;
+        }
+      }
       const dupCode = db.findItemByCode(newItem.warehouseId, newItem.code, itemId || null);
       if (newItem.code && dupCode) {
         showToast(`Mã hàng "${newItem.code}" đã có trong kho này (${dupCode.name}). Mỗi mã chỉ dùng cho một mặt hàng.`, 'danger');
@@ -7537,6 +7663,10 @@ if (typeof module !== "undefined" && module.exports) {
       }
 
       db.saveItem(newItem);
+      const adj = itemId ? applyItemStockAdjust(itemId) : null;
+      if (adj && adj.transactions) {
+        showToast(`Đã điều chỉnh tồn kho và lập ${adj.transactions.length} phiếu điều chỉnh (${adj.transactions.map(t => t.code).join(', ')}).`, 'success');
+      }
 
       // Tự động lưu vào danh mục mã chuẩn nếu checkbox được bật
       if ($('#item-save-catalog') && $('#item-save-catalog').checked && newItem.code && newItem.name) {
