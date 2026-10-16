@@ -2746,19 +2746,45 @@ if (typeof module !== "undefined" && module.exports) {
       return JSON.stringify(data, null, 2);
     }
 
-    importBackupJSON(jsonString) {
+    // Bước 1: đọc và kiểm tra file sao lưu (chưa ghi gì)
+    parseBackupJSON(jsonString) {
       try {
         const parsed = JSON.parse(jsonString);
-        if (parsed.items && Array.isArray(parsed.items) && parsed.transactions && Array.isArray(parsed.transactions)) {
-          this.data = parsed;
-          this.save();
-          return { success: true, message: 'Khôi phục cơ sở dữ liệu thành công!' };
-        } else {
-          return { success: false, message: 'Cấu trúc file sao lưu không hợp lệ!' };
+        if (!parsed || !Array.isArray(parsed.items) || !Array.isArray(parsed.transactions)) {
+          return { success: false, message: 'Cấu trúc file sao lưu không hợp lệ (thiếu danh mục hoặc phiếu)!' };
         }
+        delete parsed._sync;
+        if (!Array.isArray(parsed.requisitions)) parsed.requisitions = [];
+        if (!parsed.settings) parsed.settings = JSON.parse(JSON.stringify(INITIAL_DATA.settings || {}));
+        const count = (wh) => parsed.items.filter(i => i.warehouseId === wh).length;
+        return {
+          success: true, data: parsed,
+          summary: {
+            items: parsed.items.length, chemical: count('CHEMICAL'), office: count('OFFICE'),
+            transactions: parsed.transactions.length, requisitions: parsed.requisitions.length,
+            backupAt: parsed.settings.lastBackup || '',
+            integrity: this.checkIntegrity(parsed)
+          }
+        };
       } catch (e) {
         return { success: false, message: 'Lỗi đọc file JSON: ' + e.message };
       }
+    }
+
+    // Bước 2: thay toàn bộ dữ liệu bằng bản sao lưu
+    applyBackupData(parsed) {
+      const keepCloud = this.data?.settings?.cloudSync;
+      this.data = parsed;
+      if (keepCloud) this.data.settings.cloudSync = { ...keepCloud };
+      this.save();
+      return this.data;
+    }
+
+    importBackupJSON(jsonString) {
+      const res = this.parseBackupJSON(jsonString);
+      if (!res.success) return res;
+      this.applyBackupData(res.data);
+      return { success: true, message: 'Khôi phục cơ sở dữ liệu thành công!' };
     }
 
     resetToDefault() {
@@ -2936,9 +2962,15 @@ if (typeof module !== "undefined" && module.exports) {
         if (!ok) return null;   // đẩy không được thì KHÔNG kéo về, tránh mất dữ liệu trên máy
       }
       try {
+        const revBefore = this._rev || 0;
         const { data, error } = await this.cloudClient
           .from('forensic_inventory').select('*').eq('id', 'current_database').maybeSingle();
         if (error) throw error;
+        // Trong lúc chờ máy chủ trả về, dữ liệu trên máy vừa thay đổi (VD: vừa khôi phục file) -> KHÔNG ghi đè, đẩy bản mới lên
+        if ((this._rev || 0) !== revBefore || this.bulkDepth > 0) {
+          this.triggerCloudAutoSync();
+          return this.data;
+        }
         if (!data) return 'EMPTY';
         if (data.data) {
           this.applyCloudData(data.data, data.updated_at);
@@ -8172,14 +8204,31 @@ if (typeof module !== "undefined" && module.exports) {
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const res = db.importBackupJSON(event.target.result);
-        if (res.success) {
-          showToast(res.message);
-          loadSettingsView();
-          renderCurrentView();
+      reader.onload = async (event) => {
+        e.target.value = '';
+        const res = db.parseBackupJSON(event.target.result);
+        if (!res.success) { showToast(res.message, 'danger'); return; }
+        const sm = res.summary;
+        const when = sm.backupAt ? new Date(sm.backupAt).toLocaleString('vi-VN') : 'không rõ';
+        const integ = sm.integrity;
+        const warn = (integ.dupItemIds.length || integ.dupCodes.length)
+          ? `\n\nCẢNH BÁO: file này có ${integ.dupItemIds.length} ID mặt hàng bị trùng và ${integ.dupCodes.length} mã hàng bị trùng (dữ liệu bị lỗi do bản cũ). Khôi phục file này sẽ mang lỗi đó trở lại.`
+          : '';
+        if (!confirm(`KHÔI PHỤC DỮ LIỆU TỪ FILE "${file.name}"\n\nNội dung file:\n- ${sm.items} mặt hàng (Vật tư: ${sm.chemical}, VPP: ${sm.office})\n- ${sm.transactions} phiếu nhập/xuất\n- ${sm.requisitions} phiếu đề xuất\n- Sao lưu lúc: ${when}${warn}\n\nToàn bộ dữ liệu hiện tại${db.isCloudActive() ? ' (kể cả trên Đám Mây)' : ''} sẽ được THAY bằng nội dung file này. Tiếp tục?`)) return;
+
+        db.applyBackupData(res.data);
+        loadSettingsView();
+        renderCurrentView();
+        updateGlobalAlertBadge();
+        if (db.isCloudActive()) {
+          showToast('Đang đồng bộ dữ liệu khôi phục lên Đám Mây...', 'info');
+          const ok = await db.pushToCloud();
+          updateCloudStatusUI(ok ? 'online' : 'error', ok ? null : 'Chưa đồng bộ');
+          showToast(ok
+            ? `Đã khôi phục ${sm.items} mặt hàng, ${sm.transactions} phiếu và đồng bộ lên Đám Mây.`
+            : 'Đã khôi phục trên máy này nhưng CHƯA đồng bộ được lên Đám Mây. Kiểm tra Internet rồi bấm nút đồng bộ 🔄, không đăng xuất lúc này.', ok ? 'success' : 'danger');
         } else {
-          showToast(res.message, 'danger');
+          showToast(`Đã khôi phục ${sm.items} mặt hàng, ${sm.transactions} phiếu.`, 'success');
         }
       };
       reader.readAsText(file);
@@ -8362,12 +8411,19 @@ if (typeof module !== "undefined" && module.exports) {
       });
     }
 
-    $('#btn-reset-sample-data').onclick = () => {
-      if (confirm('Khôi phục toàn bộ cơ sở dữ liệu về bộ dữ liệu mẫu chuẩn của Trung tâm Pháp y? Mọi thay đổi hiện tại sẽ được ghi đè.')) {
-        db.resetToDefault();
+    $('#btn-reset-sample-data').onclick = async () => {
+      const typed = prompt('Nạp dữ liệu MẪU sẽ XÓA TOÀN BỘ dữ liệu kho thật hiện tại' + (db.isCloudActive() ? ' (kể cả trên Đám Mây)' : '') + ' và thay bằng dữ liệu minh họa.\nHệ thống sẽ tự tải file sao lưu trước.\n\nGõ chữ MAU để xác nhận:');
+      if (typed === null || typed.trim().toUpperCase() !== 'MAU') { if (typed !== null) showToast('Chưa xác nhận đúng, không thay đổi gì.', 'info'); return; }
+      $('#btn-export-backup-json').click();
+      db.resetToDefault();
+      loadSettingsView();
+      renderCurrentView();
+      updateGlobalAlertBadge();
+      if (db.isCloudActive()) {
+        const ok = await db.pushToCloud();
+        showToast(ok ? 'Đã nạp dữ liệu mẫu và đồng bộ lên Đám Mây.' : 'Đã nạp dữ liệu mẫu trên máy nhưng CHƯA đồng bộ lên Đám Mây.', ok ? 'success' : 'danger');
+      } else {
         showToast('Đã nạp lại cơ sở dữ liệu mẫu thành công!');
-        loadSettingsView();
-        renderCurrentView();
       }
     };
   }
